@@ -1,0 +1,17 @@
+{
+  "name": "i-dont-like-api-abuse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Crypto VM pipeline: BytecodeGenerator -> WASM compiler -> Next.js site",
+  "scripts": {
+    "build:compiler": "dotnet run --project compiler/microsoft.botsay -- compiler/microsoft.botsay/build",
+    "copy-vm": "node site/scripts/copy-vm-assets.js",
+    "build": "npm run build:compiler && npm run copy-vm && cd site && npm run build",
+    "dev": "npm run build:compiler && npm run copy-vm && cd site && npm run dev",
+    "start": "cd site && npm run start",
+    "site:install": "cd site && npm install"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
