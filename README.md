@@ -12,10 +12,10 @@ npm run start    # Production site (after build)
 
 ## Requirements
 
-- Node 18+
-- .NET 10 SDK
-- Clang with wasm32 target
-- Redis (for challenge verification)
+- [Node 18+](https://nodejs.org/en/download/archive/v18.20.8)
+- [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/sdk-10.0.103-windows-x64-installer)
+- [Clang](https://releases.llvm.org/download.html) with wasm32 target
+- [Redis](https://redis.io/downloads/) (for challenge verification)
 - `CHALLENGE_VERIFY_SECRET` env var (min 32 chars)
 - `REDIS_URL` (optional, defaults to redis://localhost:6379)
 
