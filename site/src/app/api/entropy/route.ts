@@ -101,7 +101,7 @@ function crossReference(
 
 function analyseBehaviour(events: BehaviourEvent[]): { score: number; flags: Partial<SuspiciousFlags> } {
   const RATE_LIMIT = 30;
-  const MIN_INTERVAL_MS = 50;
+  const MIN_INTERVAL_MS = 300;
   const AUTOMATION_TOLERANCE_MS = 5;
 
   let score = 0;
@@ -188,9 +188,10 @@ export async function POST(request: NextRequest) {
       const cumScore = (existing?.score ?? 0) + totalScore;
       await set(storageKey, { score: cumScore, count }, { exSeconds: SCORE_TTL_SEC });
     } catch {}
+    const ok = totalScore < 0.7;
 
     return NextResponse.json({
-      ok: totalScore < 0.7,
+      ok,
       flags,
       score: totalScore,
       reasons: reasons.length > 0 ? reasons : undefined,
