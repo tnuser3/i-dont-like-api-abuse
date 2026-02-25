@@ -1,8 +1,3 @@
-/**
- * Checksum utilities
- */
-
-/** CRC-32 (IEEE polynomial, same as ZIP/PNG) */
 export function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
   const table = getCrc32Table();
@@ -27,7 +22,6 @@ function getCrc32Table(): Uint32Array {
   return table;
 }
 
-/** CRC-32 with custom initial value (for incremental) */
 export function crc32WithInit(bytes: Uint8Array, init: number): number {
   let crc = init ^ 0xffffffff;
   const table = getCrc32Table();
@@ -37,7 +31,6 @@ export function crc32WithInit(bytes: Uint8Array, init: number): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-/** Adler-32 checksum (used in zlib) */
 export function adler32(bytes: Uint8Array): number {
   const mod = 65521;
   let a = 1;
@@ -49,7 +42,6 @@ export function adler32(bytes: Uint8Array): number {
   return ((b << 16) | a) >>> 0;
 }
 
-/** Fletcher-16 checksum */
 export function fletcher16(bytes: Uint8Array): number {
   let sum1 = 0;
   let sum2 = 0;
@@ -60,7 +52,6 @@ export function fletcher16(bytes: Uint8Array): number {
   return (sum2 << 8) | sum1;
 }
 
-/** Fletcher-32 checksum */
 export function fletcher32(bytes: Uint8Array): number {
   const mod = 0xffff;
   let sum1 = 0;
@@ -75,14 +66,12 @@ export function fletcher32(bytes: Uint8Array): number {
   return (sum2 << 16) | sum1;
 }
 
-/** XOR checksum (simple parity / quick sanity check) */
 export function xorChecksum(bytes: Uint8Array): number {
   let sum = 0;
   for (let i = 0; i < bytes.length; i++) sum ^= bytes[i]!;
   return sum & 0xff;
 }
 
-/** Simple 16-bit sum (internet checksum style, without complement) */
 export function sum16(bytes: Uint8Array): number {
   let sum = 0;
   for (let i = 0; i < bytes.length; i += 2) {

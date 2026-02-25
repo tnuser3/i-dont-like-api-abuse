@@ -1,15 +1,9 @@
-/**
- * Bitwise utilities
- */
-
-/** XOR two equal-length byte arrays in place; modifies `a` */
 export function xorInPlace(a: Uint8Array, b: Uint8Array): Uint8Array {
   if (a.length !== b.length) throw new Error("XOR: buffers must be same length");
   for (let i = 0; i < a.length; i++) a[i]! ^= b[i]!;
   return a;
 }
 
-/** XOR two equal-length byte arrays; returns new buffer */
 export function xor(a: Uint8Array, b: Uint8Array): Uint8Array {
   const out = new Uint8Array(a.length);
   if (a.length !== b.length) throw new Error("XOR: buffers must be same length");
@@ -17,33 +11,28 @@ export function xor(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
-/** Rotate left 32-bit value by n bits */
 export function rotl32(value: number, n: number): number {
   n &= 31;
   return ((value << n) | (value >>> (32 - n))) >>> 0;
 }
 
-/** Rotate right 32-bit value by n bits */
 export function rotr32(value: number, n: number): number {
   n &= 31;
   return ((value >>> n) | (value << (32 - n))) >>> 0;
 }
 
-/** Rotate left 64-bit value by n bits */
 export function rotl64(value: bigint, n: number): bigint {
   n &= 63;
   const mask = (1n << 64n) - 1n;
   return ((value << BigInt(n)) | (value >> BigInt(64 - n))) & mask;
 }
 
-/** Rotate right 64-bit value by n bits */
 export function rotr64(value: bigint, n: number): bigint {
   n &= 63;
   const mask = (1n << 64n) - 1n;
   return ((value >> BigInt(n)) | (value << BigInt(64 - n))) & mask;
 }
 
-/** Swap endianness of 32-bit value */
 export function swap32(value: number): number {
   return (
     ((value & 0xff) << 24) |
@@ -53,17 +42,14 @@ export function swap32(value: number): number {
   );
 }
 
-/** Get bit at position (0 = LSB) */
 export function getBit(value: number, bit: number): number {
   return (value >>> bit) & 1;
 }
 
-/** Set bit at position */
 export function setBit(value: number, bit: number, on: boolean): number {
   return on ? value | (1 << bit) : value & ~(1 << bit);
 }
 
-/** Count leading zeros (32-bit) */
 export function clz32(value: number): number {
   if (value === 0) return 32;
   let n = 0;
@@ -87,7 +73,6 @@ export function clz32(value: number): number {
   return n;
 }
 
-/** Count trailing zeros (32-bit) */
 export function ctz32(value: number): number {
   if (value === 0) return 32;
   let n = 0;
@@ -111,7 +96,6 @@ export function ctz32(value: number): number {
   return n;
 }
 
-/** Population count (number of set bits) */
 export function popcount32(value: number): number {
   value -= (value >>> 1) & 0x55555555;
   value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);

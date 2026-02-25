@@ -1,15 +1,9 @@
-/**
- * ChaCha20-Poly1305 AEAD encryption utilities
- * Uses Node.js built-in crypto (server-side only)
- */
-
 import { randomBytes } from "node:crypto";
 
-export const CHACHA_KEY_LENGTH = 32; // 256 bits
-export const CHACHA_IV_LENGTH = 12; // 96 bits (IETF variant)
-export const CHACHA_AUTH_TAG_LENGTH = 16; // 128 bits
+export const CHACHA_KEY_LENGTH = 32;
+export const CHACHA_IV_LENGTH = 12;
+export const CHACHA_AUTH_TAG_LENGTH = 16;
 
-/** Encrypt plaintext with ChaCha20-Poly1305; returns ciphertext || authTag */
 export async function chachaEncrypt(
   key: Uint8Array,
   plaintext: Uint8Array,
@@ -36,7 +30,6 @@ export async function chachaEncrypt(
   };
 }
 
-/** Decrypt ciphertext with ChaCha20-Poly1305 */
 export async function chachaDecrypt(
   key: Uint8Array,
   ciphertext: Uint8Array,
@@ -65,7 +58,6 @@ export async function chachaDecrypt(
   return new Uint8Array(plaintext);
 }
 
-/** Pack encrypted result into single buffer: iv || ciphertext || authTag */
 export function packChachaResult(
   ciphertext: Uint8Array,
   authTag: Uint8Array,
@@ -78,7 +70,6 @@ export function packChachaResult(
   return out;
 }
 
-/** Unpack single buffer into iv, ciphertext, authTag */
 export function unpackChachaResult(
   packed: Uint8Array
 ): { iv: Uint8Array; ciphertext: Uint8Array; authTag: Uint8Array } {
@@ -90,7 +81,6 @@ export function unpackChachaResult(
   return { iv, ciphertext, authTag };
 }
 
-/** One-shot encrypt: returns packed iv || ciphertext || authTag */
 export async function chachaEncryptPacked(
   key: Uint8Array,
   plaintext: Uint8Array,
@@ -100,7 +90,6 @@ export async function chachaEncryptPacked(
   return packChachaResult(ciphertext, authTag, iv);
 }
 
-/** One-shot decrypt from packed buffer */
 export async function chachaDecryptPacked(
   key: Uint8Array,
   packed: Uint8Array,

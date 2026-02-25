@@ -1,7 +1,3 @@
-/**
- * Encryption and encoding utilities
- */
-
 export * from "./encoding";
 export * from "./bitwise";
 export * from "./sbox";

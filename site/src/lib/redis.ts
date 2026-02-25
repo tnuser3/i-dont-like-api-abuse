@@ -25,14 +25,12 @@ async function getClient(): Promise<RedisClientType> {
   return client;
 }
 
-/** Expiry options - use ONE of: exSeconds, exMs, exAt, pxAt */
 export type ExpiryOptions =
   | { exSeconds: number }
   | { exMs: number }
   | { exAt: Date | number }
   | { pxAt: Date | number };
 
-/** Set a key with optional expiry. Value is JSON-stringified. */
 export async function set<T>(
   key: string,
   value: T,
@@ -59,7 +57,6 @@ export async function set<T>(
   }
 }
 
-/** Get a key. Returns parsed JSON or null if not found. */
 export async function get<T>(key: string): Promise<T | null> {
   const c = await getClient();
   const value = await c.get(key);
@@ -71,25 +68,33 @@ export async function get<T>(key: string): Promise<T | null> {
   }
 }
 
-/** Delete a key. */
 export async function del(key: string): Promise<void> {
   const c = await getClient();
   await c.del(key);
 }
 
-/** Set expiry on an existing key (in seconds). */
+export async function getAndDel<T>(key: string): Promise<T | null> {
+  const c = await getClient();
+  const value = await c.get(key);
+  if (value === null) return null;
+  await c.del(key);
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return value as unknown as T;
+  }
+}
+
 export async function expire(key: string, seconds: number): Promise<void> {
   const c = await getClient();
   await c.expire(key, seconds);
 }
 
-/** Set expiry on an existing key (in milliseconds). */
 export async function expireMs(key: string, ms: number): Promise<void> {
   const c = await getClient();
   await c.pExpire(key, ms);
 }
 
-/** Set expiry at a specific timestamp (Unix seconds). */
 export async function expireAt(key: string, unixSeconds: number | Date): Promise<void> {
   const c = await getClient();
   const sec = unixSeconds instanceof Date ? Math.floor(unixSeconds.getTime() / 1000) : unixSeconds;
@@ -102,13 +107,11 @@ export async function ttl(key: string): Promise<number> {
   return c.ttl(key);
 }
 
-/** Check if key exists. */
 export async function exists(key: string): Promise<boolean> {
   const c = await getClient();
   return (await c.exists(key)) === 1;
 }
 
-/** Disconnect the Redis client (e.g. for graceful shutdown). */
 export async function disconnect(): Promise<void> {
   if (client) {
     await client.close();

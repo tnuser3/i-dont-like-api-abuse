@@ -1,71 +1,40 @@
-/**
- * Client entropy utility: collects identifying system values, timestamps,
- * and tracks suspicious behaviour for abuse detection.
- */
-
 import { crc32 } from "./checksum";
 import { toHex } from "./encoding";
 
-/** Identifying system values collected from the client environment */
 export interface ClientFingerprint {
-  /** High-resolution timestamp at collection */
   timestamp: number;
-  /** Performance timing origin (page load reference) */
   perfOrigin: number;
-  /** User agent string */
   userAgent: string;
-  /** Primary language */
   language: string;
-  /** All preferred languages */
   languages: string[];
-  /** Platform (e.g. Win32, MacIntel) */
   platform: string;
-  /** Number of logical CPU cores */
   hardwareConcurrency: number;
-  /** Device memory in GB (if available) */
   deviceMemory?: number;
-  /** Screen dimensions */
   screenWidth: number;
   screenHeight: number;
-  /** Available screen space (minus taskbar etc.) */
   availWidth: number;
   availHeight: number;
-  /** Color depth in bits */
   colorDepth: number;
-  /** Pixel ratio */
   pixelRatio: number;
-  /** Timezone offset in minutes */
   timezoneOffset: number;
-  /** Timezone name (e.g. America/New_York) */
   timezone: string;
-  /** Touch support */
   touchSupport: boolean;
-  /** Cookie enabled */
   cookieEnabled: boolean;
-  /** Canvas fingerprint hash (simple) */
   canvasHash?: number;
-  /** WebGL vendor/renderer hash */
   webglHash?: number;
 }
 
-/** Event recorded for behaviour tracking */
 export interface BehaviourEvent {
   type: string;
   timestamp: number;
   payload?: Record<string, unknown>;
 }
 
-/** Suspicious behaviour flags */
 export interface SuspiciousFlags {
-  /** Too many events in a short window */
   rateLimitExceeded: boolean;
-  /** Timestamps look synthetic (too regular) */
   syntheticTimestamps: boolean;
-  /** Request pattern matches automation (e.g. fixed intervals) */
   automationPattern: boolean;
-  /** Fingerprint mismatch or inconsistency */
   fingerprintAnomaly: boolean;
-  /** Score 0–1, higher = more suspicious */
   score: number;
 }
 
@@ -74,7 +43,6 @@ const RATE_LIMIT_THRESHOLD = 30;
 const MIN_INTERVAL_MS = 50;
 const AUTOMATION_TOLERANCE_MS = 5;
 
-/** Collect identifying system values from the client (browser) */
 export function collectFingerprint(): ClientFingerprint {
   const nav = typeof navigator !== "undefined" ? navigator : ({} as Navigator);
   const scr = typeof screen !== "undefined" ? screen : ({} as Screen);
@@ -127,7 +95,6 @@ export function collectFingerprint(): ClientFingerprint {
   return fingerprint;
 }
 
-/** Simple canvas fingerprint for entropy (does not render to DOM) */
 function getCanvasHash(): number {
   if (typeof document === "undefined" || !document.createElement) return 0;
   const canvas = document.createElement("canvas");
@@ -146,7 +113,6 @@ function getCanvasHash(): number {
   return crc32(new Uint8Array(bytes));
 }
 
-/** WebGL vendor/renderer hash */
 function getWebGLHash(): number {
   if (typeof document === "undefined" || !document.createElement) return 0;
   const canvas = document.createElement("canvas");
@@ -163,7 +129,6 @@ function getWebGLHash(): number {
   return crc32(new Uint8Array(bytes));
 }
 
-/** Serialize fingerprint to bytes for hashing */
 function fingerprintToBytes(fp: ClientFingerprint): Uint8Array {
   const parts: string[] = [
     String(fp.timestamp),
@@ -191,7 +156,6 @@ function fingerprintToBytes(fp: ClientFingerprint): Uint8Array {
   return new TextEncoder().encode(str);
 }
 
-/** Derive entropy bytes from fingerprint + optional extra seed */
 export function deriveEntropy(
   fingerprint: ClientFingerprint,
   extraSeed?: string | Uint8Array,
@@ -226,12 +190,10 @@ export function deriveEntropy(
   return out;
 }
 
-/** Behaviour tracker for detecting suspicious patterns */
 export class BehaviourTracker {
   private events: BehaviourEvent[] = [];
   private lastFingerprint: ClientFingerprint | null = null;
 
-  /** Record an event (e.g. API call, challenge request) */
   record(type: string, payload?: Record<string, unknown>): void {
     this.events.push({
       type,
@@ -241,7 +203,6 @@ export class BehaviourTracker {
     this.prune();
   }
 
-  /** Update stored fingerprint for anomaly detection */
   setFingerprint(fp: ClientFingerprint): void {
     this.lastFingerprint = fp;
   }
@@ -251,7 +212,6 @@ export class BehaviourTracker {
     this.events = this.events.filter((e) => e.timestamp >= cutoff);
   }
 
-  /** Analyse behaviour and return suspicious flags */
   analyse(): SuspiciousFlags {
     this.prune();
     const flags: SuspiciousFlags = {
@@ -296,28 +256,23 @@ export class BehaviourTracker {
     return flags;
   }
 
-  /** Get events in the current window (for server submission) */
   getEvents(): BehaviourEvent[] {
     this.prune();
     return [...this.events];
   }
 
-  /** Clear tracked events */
   clear(): void {
     this.events = [];
   }
 }
 
-/** Singleton tracker for app-wide use */
 let defaultTracker: BehaviourTracker | null = null;
 
-/** Get the default behaviour tracker */
 export function getBehaviourTracker(): BehaviourTracker {
   if (!defaultTracker) defaultTracker = new BehaviourTracker();
   return defaultTracker;
 }
 
-/** Payload sent to server for entropy validation */
 export interface EntropySubmitPayload {
   fingerprint: ClientFingerprint;
   entropyHex: string;
@@ -326,17 +281,14 @@ export interface EntropySubmitPayload {
   extraSeed?: string;
 }
 
-/** Response from entropy API */
 export interface EntropySubmitResponse {
   ok: boolean;
   flags: SuspiciousFlags;
   score: number;
   message?: string;
-  /** Mismatch reasons when fingerprint anomaly detected */
   reasons?: string[];
 }
 
-/** Submit entropy to server for validation and scoring. Call from client. */
 export async function submitEntropy(
   baseUrl = "",
   extraSeed?: string
@@ -364,7 +316,6 @@ export async function submitEntropy(
   return res.json() as Promise<EntropySubmitResponse>;
 }
 
-/** Create full entropy payload: fingerprint + derived bytes + behaviour snapshot */
 export function createEntropyPayload(extraSeed?: string): {
   fingerprint: ClientFingerprint;
   entropy: Uint8Array;

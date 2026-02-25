@@ -4,14 +4,11 @@ import { deriveEntropy } from "@/lib/entropy";
 import { fromHex } from "@/lib/encoding";
 import { set, get } from "@/lib/redis";
 
-/** Max client-server timestamp drift (ms) before flagging */
-const MAX_TIMESTAMP_DRIFT_MS = 120_000; // 2 minutes
-/** Score per mismatch (max 1.0 total from cross-reference) */
+const MAX_TIMESTAMP_DRIFT_MS = 120_000;
 const USER_AGENT_MISMATCH = 0.35;
 const LANGUAGE_MISMATCH = 0.25;
 const TIMESTAMP_DRIFT = 0.3;
 const ENTROPY_MISMATCH = 0.4;
-/** Store score by fingerprint hash, 24h expiry */
 const SCORE_KEY_PREFIX = "entropy:score:";
 const SCORE_TTL_SEC = 86_400;
 
@@ -44,7 +41,6 @@ function crossReference(
   const uaHeader = headers.get("user-agent") ?? "";
   const acceptLang = headers.get("accept-language") ?? "";
 
-  // User-Agent: client claims vs what server sees
   if (fingerprint.userAgent && uaHeader) {
     const normClient = fingerprint.userAgent.trim().toLowerCase();
     const normHeader = uaHeader.trim().toLowerCase();
@@ -57,7 +53,6 @@ function crossReference(
     reasons.push("user_agent_missing_header");
   }
 
-  // Accept-Language vs client language/languages
   if (fingerprint.language && acceptLang) {
     const clientLang = fingerprint.language.toLowerCase().split("-")[0];
     const headerLangs = acceptLang
@@ -70,7 +65,6 @@ function crossReference(
     }
   }
 
-  // Timestamp drift: client time vs server time
   const serverNow = Date.now();
   const drift = Math.abs(serverNow - clientTimestamp);
   if (drift > MAX_TIMESTAMP_DRIFT_MS) {
@@ -78,7 +72,6 @@ function crossReference(
     reasons.push("timestamp_drift");
   }
 
-  // Entropy: recompute and compare (fingerprint + extraSeed)
   try {
     const expected = deriveEntropy(fingerprint, extraSeed);
     const received = fromHex(entropyHex);
@@ -164,7 +157,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cross-reference server headers vs client claims
     const { score: crossScore, reasons } = crossReference(
       fingerprint,
       request.headers,
@@ -173,7 +165,6 @@ export async function POST(request: NextRequest) {
       extraSeed
     );
 
-    // Re-analyse behaviour on server
     const { score: behaviourScore, flags: behaviourFlags } = analyseBehaviour(
       behaviour.events
     );
@@ -189,7 +180,6 @@ export async function POST(request: NextRequest) {
       score: totalScore,
     };
 
-    // Persist score by fingerprint for rate/abuse tracking (optional, Redis may be unavailable)
     try {
       const fpHash = computeFingerprintHash(fingerprint);
       const storageKey = `${SCORE_KEY_PREFIX}${fpHash}`;
@@ -197,9 +187,7 @@ export async function POST(request: NextRequest) {
       const count = (existing?.count ?? 0) + 1;
       const cumScore = (existing?.score ?? 0) + totalScore;
       await set(storageKey, { score: cumScore, count }, { exSeconds: SCORE_TTL_SEC });
-    } catch {
-      // Redis unavailable – continue without persistence
-    }
+    } catch {}
 
     return NextResponse.json({
       ok: totalScore < 0.7,

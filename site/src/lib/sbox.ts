@@ -1,8 +1,3 @@
-/**
- * S-box (substitution box) utilities for cipher operations
- */
-
-/** AES S-box (Rijndael) - forward substitution */
 export const AES_SBOX: Readonly<Uint8Array> = new Uint8Array([
   0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
   0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -22,7 +17,6 @@ export const AES_SBOX: Readonly<Uint8Array> = new Uint8Array([
   0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16,
 ]);
 
-/** AES inverse S-box */
 export const AES_INV_SBOX: Readonly<Uint8Array> = new Uint8Array([
   0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
   0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
@@ -42,24 +36,20 @@ export const AES_INV_SBOX: Readonly<Uint8Array> = new Uint8Array([
   0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d,
 ]);
 
-/** Apply S-box substitution to bytes */
 export function applySbox(bytes: Uint8Array, sbox: Readonly<Uint8Array>, inPlace = false): Uint8Array {
   const out = inPlace ? bytes : new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) out[i] = sbox[bytes[i]!] ?? bytes[i]!;
   return out;
 }
 
-/** Apply forward AES S-box */
 export function sboxForward(bytes: Uint8Array, inPlace = false): Uint8Array {
   return applySbox(bytes, AES_SBOX, inPlace);
 }
 
-/** Apply inverse AES S-box */
 export function sboxInverse(bytes: Uint8Array, inPlace = false): Uint8Array {
   return applySbox(bytes, AES_INV_SBOX, inPlace);
 }
 
-/** Create a random S-box (for custom ciphers) */
 export function createRandomSbox(prng?: () => number): Uint8Array {
   const sbox = new Uint8Array(256);
   for (let i = 0; i < 256; i++) sbox[i] = i;
@@ -71,7 +61,6 @@ export function createRandomSbox(prng?: () => number): Uint8Array {
   return sbox;
 }
 
-/** Compute inverse of an S-box (S^{-1}[S[x]] = x) */
 export function invertSbox(sbox: Readonly<Uint8Array>): Uint8Array {
   const inv = new Uint8Array(256);
   for (let i = 0; i < 256; i++) inv[sbox[i]!] = i;
