@@ -35,3 +35,11 @@ npm run start    # Production site (after build)
 - [VM](docs/vm.md) — Operations, bytecodes, and vm_run
 - [Site](docs/site.md) — APIs, pages, and configuration
 - [Entropy](docs/entropy.md) — Fingerprint and behaviour validation
+
+
+## Developer Message
+
+This project is a recreation of an old concept i had that created a list of operations and a vm runs these operations to prevent api abuse.
+The concept i had is currently implamented in https://qyzar.eu this one is a tad bit diffrent with stronger encryption and more encoding types.
+The docs where made by AI and im not bothering to check them so if you dont understand create an issue or message me directly if you can find me.
+TLDR: docs are made by ai and this is a recreation of the anti api abuse system on my website https://qyzar.eu
