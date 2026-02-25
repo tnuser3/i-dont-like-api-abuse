@@ -36,6 +36,19 @@ npm run start    # Production site (after build)
 - [Site](docs/site.md) — APIs, pages, and configuration
 - [Entropy](docs/entropy.md) — Fingerprint and behaviour validation
 
+## Pull Request Policy
+
+### We welcome pull requests
+
+Contributions are encouraged! If you have ideas for improvements, bug fixes, or new features, please open an issue to discuss first, then submit a pull request.
+
+### Maintainers & contributors
+
+I'm currently the only maintainer of this project. I would love to have others interested in contributing regularly—if you're passionate about anti-abuse systems, VM design, or this stack, reach out and let's chat about how you can get more involved.
+
+### AI-generated code
+
+AI-assisted code is fine. However, we won't accept AI slop—code that hasn't been thoroughly reviewed, understood, and debugged. Please run through your changes, test them, and make sure you can explain what the code does and why it belongs here.
 
 ## Developer Message
 
