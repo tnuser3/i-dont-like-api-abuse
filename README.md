@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# i-dont-like-api-abuse
 
-## Getting Started
+Anti-abuse pipeline: cryptographically random bytecode VM, ChaCha-encrypted WASM delivery, entropy validation, and JWT-backed challenge verification.
 
-First, run the development server:
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build    # Compiler → copy assets → build site
+npm run dev      # Compiler → copy assets → dev server
+npm run start    # Production site (after build)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Requirements
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Node 18+
+- .NET 10 SDK
+- Clang with wasm32 target
+- Redis (for challenge verification)
+- `CHALLENGE_VERIFY_SECRET` env var (min 32 chars)
+- `REDIS_URL` (optional, defaults to redis://localhost:6379)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project layout
 
-## Learn More
+```
+├── compiler/microsoft.botsay/   C# bytecode generator + WASM compiler
+├── site/                       Next.js app + VM lib
+├── docs/                       Architecture and API docs
+└── package.json                Root scripts
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Documentation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Architecture](docs/architecture.md) — Pipeline overview and data flow
+- [Compiler](docs/compiler.md) — Bytecode generation and WASM build
+- [VM](docs/vm.md) — Operations, bytecodes, and vm_run
+- [Site](docs/site.md) — APIs, pages, and configuration
+- [Entropy](docs/entropy.md) — Fingerprint and behaviour validation
