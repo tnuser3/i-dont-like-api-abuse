@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,4 +7,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Regenerate S-box at build (optional) -->
+  <Target Name="RegenerateSbox" BeforeTargets="CoreCompile">
+    <Exec Command="dotnet run --project $(MSBuildThisFileDirectory)..\SboxGenerator\SboxGenerator.csproj -- $(MSBuildThisFileDirectory).."
+          WorkingDirectory="$(MSBuildThisFileDirectory)" IgnoreExitCode="true" />
+  </Target>
 </Project>
