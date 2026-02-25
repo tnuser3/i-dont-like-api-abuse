@@ -43,3 +43,7 @@ This project is a recreation of an old concept i had that created a list of oper
 The concept i had is currently implamented in https://qyzar.eu this one is a tad bit diffrent with stronger encryption and more encoding types.
 The docs where made by AI and im not bothering to check them so if you dont understand create an issue or message me directly if you can find me.
 TLDR: docs are made by ai and this is a recreation of the anti api abuse system on my website https://qyzar.eu
+
+
+https://github.com/user-attachments/assets/cb176525-0e81-4002-ab03-d8bf0edbb507
+
