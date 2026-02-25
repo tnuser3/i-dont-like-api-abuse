@@ -96,10 +96,11 @@ export function writeU32BE(value: number, out: Uint8Array, offset: number): void
 
 export function readU32LE(bytes: Uint8Array, offset: number): number {
   return (
-    bytes[offset]! |
-    (bytes[offset + 1]! << 8) |
-    (bytes[offset + 2]! << 16) |
-    (bytes[offset + 3]! << 24)
+    (bytes[offset]! |
+      (bytes[offset + 1]! << 8) |
+      (bytes[offset + 2]! << 16) |
+      (bytes[offset + 3]! << 24)) >>>
+    0
   );
 }
 

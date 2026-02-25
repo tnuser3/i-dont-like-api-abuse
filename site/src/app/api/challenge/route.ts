@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { chachaEncrypt, CHACHA_KEY_LENGTH } from "@/lib/chacha-poly";
-import { randomBytes } from "node:crypto";
 import { run } from "@/lib/vm-encoder";
 import { readU32LE } from "@/lib/encoding";
 import { set } from "@/lib/redis";
@@ -30,12 +29,23 @@ function encodePacked(iv: Uint8Array, ciphertext: Uint8Array, tag: Uint8Array): 
   return packed;
 }
 
-function shuffle<T>(arr: T[]): T[] {
+function secureShuffle<T>(arr: T[]): T[] {
+  const bytes = randomBytes(arr.length * 4);
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const r = (bytes[i * 4]! | (bytes[i * 4 + 1]! << 8) | (bytes[i * 4 + 2]! << 16) | (bytes[i * 4 + 3]! << 24)) >>> 0;
+    const j = r % (i + 1);
     [arr[i], arr[j]] = [arr[j]!, arr[i]!];
   }
   return arr;
+}
+
+function secureRandomInt(maxExclusive: number): number {
+  if (maxExclusive <= 1) return 0;
+  const bytes = randomBytes(4);
+  const r = (bytes[0]! | (bytes[1]! << 8) | (bytes[2]! << 16) | (bytes[3]! << 24)) >>> 0;
+  const threshold = (0xffffffff - (0xffffffff % maxExclusive)) >>> 0;
+  if (r >= threshold) return secureRandomInt(maxExclusive);
+  return r % maxExclusive;
 }
 
 export async function GET(request: NextRequest) {
@@ -82,14 +92,15 @@ export async function GET(request: NextRequest) {
     const packed = encodePacked(iv, ciphertext, authTag);
     const encryptedWasm = Buffer.from(packed).toString("base64");
 
-    const numOps = 8 + Math.floor(Math.random() * 8);
-    const numLayers = 2 + Math.floor(Math.random() * 4);
+    const numOps = 8 + secureRandomInt(8);
+    const numLayers = 2 + secureRandomInt(4);
     const layerSizes: number[] = [];
     let remaining = numOps;
     for (let i = 0; i < numLayers - 1; i++) {
       const minPerLayer = 1;
       const maxForLayer = Math.max(minPerLayer, remaining - (numLayers - i - 1) * minPerLayer);
-      const size = minPerLayer + Math.floor(Math.random() * Math.max(0, maxForLayer - minPerLayer + 1));
+      const range = Math.max(0, maxForLayer - minPerLayer + 1);
+      const size = minPerLayer + (range > 0 ? secureRandomInt(range) : 0);
       layerSizes.push(Math.min(size, remaining));
       remaining -= layerSizes[i]!;
     }
@@ -99,22 +110,16 @@ export async function GET(request: NextRequest) {
     for (const layerSize of layerSizes) {
       const layerOps: ChallengeOperation[] = [];
       for (let i = 0; i < layerSize; i++) {
-        const op = opcodeBytes[Math.floor(Math.random() * opcodeBytes.length)]!;
-        const paramLen = Math.floor(Math.random() * 8);
-        const params = Array.from({ length: paramLen }, () =>
-          Math.floor(Math.random() * 256)
-        );
+        const op = opcodeBytes[secureRandomInt(opcodeBytes.length)]!;
+        const paramLen = secureRandomInt(8);
+        const params = Array.from({ length: paramLen }, () => randomBytes(1)[0]!);
         layerOps.push({ op, params });
       }
-      shuffle(layerOps);
+      secureShuffle(layerOps);
       operations.push(...layerOps);
     }
 
-    const inputBytes = new Uint8Array(4);
-    inputBytes[0] = Math.floor(Math.random() * 256);
-    inputBytes[1] = Math.floor(Math.random() * 256);
-    inputBytes[2] = Math.floor(Math.random() * 256);
-    inputBytes[3] = Math.floor(Math.random() * 256);
+    const inputBytes = randomBytes(8);
     const input = Buffer.from(inputBytes).toString("base64");
 
     const result = run(inputBytes, operations, {

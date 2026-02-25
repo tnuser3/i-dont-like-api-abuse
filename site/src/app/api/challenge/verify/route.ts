@@ -17,13 +17,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const solvedNum = typeof solved === "number" ? solved : parseInt(String(solved), 10);
-    if (isNaN(solvedNum) || !Number.isInteger(solvedNum) || solvedNum < 0 || solvedNum > 0xffffffff) {
+    const raw = typeof solved === "number" ? solved : parseInt(String(solved), 10);
+    if (isNaN(raw) || !Number.isInteger(raw) || raw < -0x80000000 || raw > 0xffffffff) {
       return NextResponse.json(
         { ok: false, error: "solved must be a uint32 (0–4294967295)" },
         { status: 400 }
       );
     }
+    const solvedNum = raw >>> 0;
 
     let challengeId: string;
     try {
