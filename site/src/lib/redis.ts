@@ -112,6 +112,26 @@ export async function exists(key: string): Promise<boolean> {
   return (await c.exists(key)) === 1;
 }
 
+export async function sAdd(key: string, ...members: string[]): Promise<number> {
+  const c = await getClient();
+  return c.sAdd(key, members);
+}
+
+export async function sMembers(key: string): Promise<string[]> {
+  const c = await getClient();
+  return c.sMembers(key);
+}
+
+export async function sCard(key: string): Promise<number> {
+  const c = await getClient();
+  return c.sCard(key);
+}
+
+export async function sRem(key: string, ...members: string[]): Promise<number> {
+  const c = await getClient();
+  return c.sRem(key, members);
+}
+
 export async function disconnect(): Promise<void> {
   if (client) {
     await client.close();
