@@ -36,7 +36,8 @@ const RATE_TIERS: { limit: number; limitJitter: number; windowMs: number; window
 ];
 const ASN_BLOCK_THRESHOLD = 5;
 const ASN_SCORE_PER_BLOCKED_IP = 0.1;
-const MAX_ASN_SCORE = 0.5;
+const MAX_ASN_SCORE = 0.2;
+const ASN_BASE_SCORE_MULTIPLIER = 0.2;
 const ASN_BASE_SCORES_PATH = "data/asn-base-scores.json";
 
 let asnBaseScoresCache: Record<string, number> | null = null;
@@ -51,7 +52,9 @@ async function getAsnBaseScores(): Promise<Record<string, number>> {
     for (const [k, v] of Object.entries(parsed)) {
       if (k.startsWith("_")) continue;
       const n = typeof v === "number" ? v : parseFloat(String(v));
-      if (!isNaN(n) && n >= 0 && n <= MAX_ASN_SCORE) scores[k] = n;
+      if (!isNaN(n) && n >= 0) {
+        scores[k] = Math.min(MAX_ASN_SCORE, n * ASN_BASE_SCORE_MULTIPLIER);
+      }
     }
     asnBaseScoresCache = scores;
     return scores;
@@ -166,24 +169,12 @@ function assessUserAgent(ua: string | null): { score: number; reasons: string[] 
 function assessOrigin(origin: string | null): { score: number; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
-  if (!origin || origin.length === 0) {
-    score += 0.1;
-    reasons.push("origin_missing");
-    log("assessOrigin: missing", { score, reasons });
-    return { score, reasons };
-  }
-  if (origin === "null") {
-    score += 0.4;
-    reasons.push("origin_null");
-    log("assessOrigin: null", { score, reasons });
-    return { score, reasons };
-  }
   try {
-    const u = new URL(origin);
-    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") {
-      score += 0.2;
-      reasons.push("origin_localhost");
+    if (!origin) {
+      reasons.push("origin_missing");
+      return { score, reasons };
     }
+    const u = new URL(origin);
     if (u.protocol !== "https:" && u.protocol !== "http:") {
       score += 0.2;
       reasons.push("origin_unusual_protocol");
@@ -236,10 +227,28 @@ const SUSPICIOUS_WEBGL_RENDERERS = [
   /llvmpipe.*gallium/i,
 ];
 
+const WEBGL_ABSENT_OR_DISABLED = [
+  /^\s*$/,
+  /^unknown$/i,
+  /^none$/i,
+  /^n\/a$/i,
+  /disabled/i,
+  /blocked/i,
+  /unavailable/i,
+  /not available/i,
+  /not supported/i,
+  /webgl\s+disabled/i,
+];
+
 export function assessWebGLRenderer(renderer: string | null | undefined): { score: number; reasons: string[] } {
-  if (!renderer || renderer.length === 0) return { score: 0, reasons: [] };
+  const s = typeof renderer === "string" ? renderer.trim() : "";
+  if (!s) return { score: 0, reasons: [] };
+  for (const p of WEBGL_ABSENT_OR_DISABLED) {
+    if (p.test(s)) return { score: 0, reasons: [] };
+  }
   for (const p of SUSPICIOUS_WEBGL_RENDERERS) {
-    if (p.test(renderer)) {
+    if (p.test(s)) {
+      console.log("webgl_suspicious_renderer", s);
       return { score: 0.25, reasons: ["webgl_suspicious_renderer"] };
     }
   }
