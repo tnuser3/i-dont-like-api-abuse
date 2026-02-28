@@ -6,12 +6,8 @@ import {
   vmRunWithOperations,
   type ChallengeResponse,
 } from "@/lib/vm-inject";
-import {
-  submitEntropy,
-  getBehaviourTracker,
-  type EntropySubmitResponse,
-} from "@/lib/entropy";
-import { submitFingerprint, getVisitorHeaders } from "@/lib/fingerprint-client";
+import { getBehaviourTracker } from "@/lib/entropy";
+import { requestChallenge, getVisitorHeaders } from "@/lib/fingerprint-client";
 import { readU32LE } from "@/lib/encoding";
 
 type StepStatus = "idle" | "loading" | "ok" | "error";
@@ -22,11 +18,6 @@ interface StepState {
 }
 
 export default function Home() {
-  const [entropyState, setEntropyState] = useState<StepState>({
-    status: "idle",
-  });
-  const [entropyResult, setEntropyResult] =
-    useState<EntropySubmitResponse | null>(null);
   const [challengeState, setChallengeState] = useState<StepState>({
     status: "idle",
   });
@@ -39,36 +30,15 @@ export default function Home() {
   const [solvedInteger, setSolvedInteger] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
 
-  const runEntropy = useCallback(async () => {
-    setEntropyState({ status: "loading" });
-    setError("");
-    try {
-      const tracker = getBehaviourTracker();
-      tracker.record("entropy_submit");
-      const res = await submitEntropy();
-      setEntropyResult(res);
-      setEntropyState({
-        status: res.ok ? "ok" : "error",
-        message: res.ok
-          ? `Valid (score: ${res.score.toFixed(2)})`
-          : `Suspicious (score: ${res.score.toFixed(2)})`,
-      });
-    } catch (e) {
-      setError(String(e));
-      setEntropyState({ status: "error", message: String(e) });
-    }
-  }, []);
-
   const runChallenge = useCallback(async () => {
     setChallengeState({ status: "loading" });
     setError("");
     try {
-      const res = await fetch("/api/challenge", { headers: getVisitorHeaders() });
-      if (!res.ok) throw new Error(`Challenge failed: ${res.status}`);
-      const data = (await res.json()) as ChallengeResponse;
+      const tracker = getBehaviourTracker();
+      tracker.record("challenge_request");
+      const data = await requestChallenge();
       setChallenge(data);
       setChallengeState({ status: "ok", message: "Challenge received" });
-      submitFingerprint(data.token, data.signingKey).catch(() => {});
     } catch (e) {
       setError(String(e));
       setChallengeState({ status: "error", message: String(e) });
@@ -190,8 +160,7 @@ export default function Home() {
           </a>
         </div>
         <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-8">
-          Entropy validation → Challenge (encrypted WASM) → VM load → Run
-          operations
+          Challenge (entropy + fingerprint validated) → VM load → Run operations
         </p>
 
         {error && (
@@ -206,34 +175,11 @@ export default function Home() {
         <div className="space-y-4">
           <section className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
             <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-              1. Entropy
+              1. Challenge
             </h2>
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
-              Validate fingerprint & behaviour before challenge
-            </p>
-            <button
-              onClick={runEntropy}
-              disabled={entropyState.status === "loading"}
-              className="px-4 py-2 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium hover:opacity-90 disabled:opacity-60"
-            >
-              {entropyState.status === "loading" ? "…" : "Submit entropy"}
-            </button>
-            <span
-              className={`ml-3 text-sm ${statusColor(entropyState.status)}`}
-            >
-              {entropyState.status === "ok" && entropyResult?.score != null && (
-                <>Score: {(entropyResult.score * 100).toFixed(0)}%</>
-              )}
-              {entropyState.message}
-            </span>
-          </section>
-
-          <section className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-              2. Challenge
-            </h2>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
-              Fetch ChaCha-encrypted WASM + operations
+              Submit entropy + fingerprint to receive ChaCha-encrypted WASM +
+              operations
             </p>
             <button
               onClick={runChallenge}
@@ -245,18 +191,14 @@ export default function Home() {
             <span
               className={`ml-3 text-sm ${statusColor(challengeState.status)}`}
             >
-              {challenge && (
-                <>{challenge.operations.length} operations</>
-              )}
-              {challengeState.message && !challenge && (
-                challengeState.message
-              )}
+              {challenge && <>{challenge.operations.length} operations</>}
+              {challengeState.message && !challenge && challengeState.message}
             </span>
           </section>
 
           <section className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
             <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-              3. Load VM
+              2. Load VM
             </h2>
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
               Decrypt WASM and instantiate VM
@@ -279,7 +221,7 @@ export default function Home() {
 
           <section className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
             <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-              4. Run VM
+              3. Run VM
             </h2>
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
               Run VM on challenge input with operations; result is integer
@@ -334,12 +276,9 @@ export default function Home() {
               setVerifyState({ status: "idle" });
               try {
                 setChallengeState({ status: "loading" });
-                const res = await fetch("/api/challenge", { headers: getVisitorHeaders() });
-                if (!res.ok) throw new Error(`Challenge failed: ${res.status}`);
-                const data = (await res.json()) as ChallengeResponse;
+                const data = await requestChallenge();
                 setChallenge(data);
                 setChallengeState({ status: "ok" });
-                submitFingerprint(data.token, data.signingKey).catch(() => {});
 
                 setVmState({ status: "loading" });
                 await loadVmFromChallenge(data);
