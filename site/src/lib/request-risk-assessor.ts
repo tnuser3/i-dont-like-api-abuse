@@ -240,6 +240,38 @@ const WEBGL_ABSENT_OR_DISABLED = [
   /webgl\s+disabled/i,
 ];
 
+export function assessFingerprintComponents(
+  components: Record<string, { value?: unknown; error?: unknown; duration?: number }>,
+  webglVendor: string | null | undefined
+): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+  let score = 0;
+
+  let screenFrameAllZeros = false;
+  const screenFrameComp = components["screenFrame"];
+  if (screenFrameComp?.value !== undefined) {
+    let arr: number[] | null = null;
+    const v = screenFrameComp.value;
+    if (typeof v === "string") {
+      const m = v.match(/^\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]$/);
+      if (m) arr = [parseFloat(m[1]!), parseFloat(m[2]!), parseFloat(m[3]!), parseFloat(m[4]!)];
+    } else if (Array.isArray(v) && v.length >= 4) {
+      arr = v.slice(0, 4).map((x) => (typeof x === "number" ? x : parseFloat(String(x))));
+    }
+    screenFrameAllZeros = !!arr && arr.every((n) => n === 0);
+  }
+
+  const vendor = String(webglVendor ?? "").trim();
+  const isGoogleInc = /^Google\s*Inc\.?$/i.test(vendor);
+
+  if (screenFrameAllZeros && isGoogleInc) {
+    score += 0.5;
+    reasons.push("screen_frame_all_zeros_and_webgl_vendor_google_inc");
+  }
+
+  return { score, reasons };
+}
+
 export function assessWebGLRenderer(renderer: string | null | undefined): { score: number; reasons: string[] } {
   const s = typeof renderer === "string" ? renderer.trim() : "";
   if (!s) return { score: 0, reasons: [] };
@@ -248,7 +280,6 @@ export function assessWebGLRenderer(renderer: string | null | undefined): { scor
   }
   for (const p of SUSPICIOUS_WEBGL_RENDERERS) {
     if (p.test(s)) {
-      console.log("webgl_suspicious_renderer", s);
       return { score: 0.25, reasons: ["webgl_suspicious_renderer"] };
     }
   }
@@ -472,8 +503,16 @@ export function extractRiskInput(request: NextRequest): RiskRequestInput {
   return input;
 }
 
-export async function assessRequest(input: RiskRequestInput): Promise<RiskAssessment> {
+export async function assessBody(input: NextRequest): Promise<{ score: number; reasons: string[] }> {
+  const body = await input.json();
+  if (!body || typeof body !== "object") return { score: 0, reasons: [] };
+  
+  return { score: 0, reasons: [] };
+}
+
+export async function assessRequest(input: RiskRequestInput, request: NextRequest): Promise<RiskAssessment> {
   const headerResult = assessHeaders(input);
+
   const rl = await checkRateLimit(input.ip);
   const asn = await getAsnForIp(input.ip);
   const asnScore = await getAsnScore(asn);
@@ -524,7 +563,7 @@ export async function processRequest(
       ),
     };
   }
-  const assessment = await assessRequest(input);
+  const assessment = await assessRequest(input, request);
   if (assessment.blocked && assessment.blockUntil) {
     const retryAfter = Math.ceil((assessment.blockUntil - Date.now()) / 1000);
     log("processRequest: BLOCKED (rate limit)", { ip: input.ip, retryAfter, reasons: assessment.reasons });

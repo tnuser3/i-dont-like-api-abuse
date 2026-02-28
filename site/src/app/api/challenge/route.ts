@@ -30,6 +30,7 @@ import {
 import {
   processRequest,
   assessWebGLRenderer,
+  assessFingerprintComponents,
   RISK_BLOCK_THRESHOLD,
 } from "@/lib/request-risk-assessor";
 
@@ -354,10 +355,16 @@ export async function POST(request: NextRequest) {
     const fp = entropyData.fingerprint;
     const webglStr = [fp.webglRenderer, fp.webglVendor].filter(Boolean).join(" ");
     const webglAssessment = assessWebGLRenderer(webglStr || undefined);
+    const comps = (fingerprintData.payload as { components?: Record<string, { value?: unknown; error?: unknown; duration?: number }> }).components ?? {};
+    const fpComponentsAssessment = assessFingerprintComponents(comps, fp.webglVendor);
     const headerScore = risk.blocked === false ? risk.assessment.score : 0;
-    const totalRisk = headerScore + webglAssessment.score;
+    const totalRisk = headerScore + webglAssessment.score + fpComponentsAssessment.score;
     if (totalRisk >= RISK_BLOCK_THRESHOLD) {
-      const reasons = [...(risk.blocked === false ? risk.assessment.reasons : []), ...webglAssessment.reasons];
+      const reasons = [
+        ...(risk.blocked === false ? risk.assessment.reasons : []),
+        ...webglAssessment.reasons,
+        ...fpComponentsAssessment.reasons,
+      ];
       return NextResponse.json(
         { error: "Blocked", reasons },
         { status: 403 }
