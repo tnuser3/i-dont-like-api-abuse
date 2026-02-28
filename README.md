@@ -32,10 +32,13 @@ npm run start    # Production site (after build)
 
 - [Architecture](docs/architecture.md) — Pipeline overview and data flow
 - [API Endpoints](docs/api-endpoints.md) — All endpoints, flows, and line-by-line process
-- [Compiler](docs/compiler.md) — Bytecode generation and WASM build
-- [VM](docs/vm.md) — Operations, bytecodes, and vm_run
 - [Site](docs/site.md) — APIs, pages, and configuration
-- [Entropy](docs/entropy.md) — Fingerprint and behaviour validation
+
+- [Challenge encryption](docs/challenge-encryption.md) — ECDH, HKDF, ChaCha20-Poly1305
+- [VM](docs/vm.md) — Bytecode VM, operations, `vm_run`, `run()` vs `encode()`
+- [Entropy](docs/entropy.md) — Fingerprint derivation, cross-reference, behaviour analysis
+- [Fingerprint](docs/fingerprint.md) — FingerprintJS, HMAC verification, device linking, component assessment
+- [Compiler](docs/compiler.md) — BytecodeGen, CWasmInjector, WASM build pipeline
 
 ## Pull Request Policy
 
