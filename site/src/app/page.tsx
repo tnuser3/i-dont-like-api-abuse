@@ -11,6 +11,7 @@ import {
   getBehaviourTracker,
   type EntropySubmitResponse,
 } from "@/lib/entropy";
+import { submitFingerprint } from "@/lib/fingerprint-client";
 import { readU32LE } from "@/lib/encoding";
 
 type StepStatus = "idle" | "loading" | "ok" | "error";
@@ -67,6 +68,7 @@ export default function Home() {
       const data = (await res.json()) as ChallengeResponse;
       setChallenge(data);
       setChallengeState({ status: "ok", message: "Challenge received" });
+      submitFingerprint(data.token, data.signingKey).catch(() => {});
     } catch (e) {
       setError(String(e));
       setChallengeState({ status: "error", message: String(e) });
@@ -173,9 +175,17 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black font-sans">
       <main className="max-w-2xl mx-auto py-12 px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 mb-2">
-          API challenge pipeline
-        </h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+            API challenge pipeline
+          </h1>
+          <a
+            href="/manager"
+            className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+          >
+            Manager →
+          </a>
+        </div>
         <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-8">
           Entropy validation → Challenge (encrypted WASM) → VM load → Run
           operations
@@ -326,6 +336,7 @@ export default function Home() {
                 const data = (await res.json()) as ChallengeResponse;
                 setChallenge(data);
                 setChallengeState({ status: "ok" });
+                submitFingerprint(data.token, data.signingKey).catch(() => {});
 
                 setVmState({ status: "loading" });
                 await loadVmFromChallenge(data);
