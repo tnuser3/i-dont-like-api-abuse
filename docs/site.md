@@ -1,42 +1,27 @@
 # Site
 
-Next.js application with API routes and VM integration.
+Next.js application with API routes, risk assessment, and VM-based challenges.
 
-## APIs
+## API Endpoints
 
-### POST /api/entropy
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | /api/challenge | Obtain encryption credentials (id, encryptedPublicKey) |
+| POST | /api/challenge | Submit entropy + fingerprint; receive encrypted challenge |
+| POST | /api/challenge/verify | Submit solved integer; verify and consume challenge |
+| GET | /api/manager/requests | List recent API requests (paginated) |
+| GET | /api/manager/fingerprints | List stored device fingerprints |
 
-Validates client fingerprint and behaviour.
+See [api-endpoints.md](./api-endpoints.md) for request/response formats, flow descriptions, and error handling.
 
-**Request:** `{ fingerprint, entropyHex, timestamp, behaviour, extraSeed? }`
+## Client Flow
 
-**Response:** `{ ok, flags, score, reasons? }`
-
-- `ok` — true if score < 0.7
-- `flags` — rateLimitExceeded, syntheticTimestamps, automationPattern, fingerprintAnomaly, score
-- `reasons` — Mismatch reasons when fingerprint anomaly
-
-### GET /api/challenge
-
-Returns a new challenge.
-
-**Response:** `{ encryptedWasm, key, operations, input, token }`
-
-- `encryptedWasm` — Base64 of iv ‖ ciphertext ‖ tag (ChaCha20-Poly1305)
-- `key` — Base64 decryption key
-- `operations` — `[{ op, params }]`; op = opcode byte
-- `input` — Base64 4-byte input
-- `token` — JWT for verification
-
-### POST /api/challenge/verify
-
-Verifies the solved integer.
-
-**Request:** `{ token, solved }`
-
-**Response:** `{ ok }` or `{ ok: false, error }`
-
-Token is verified; expected value is fetched from Redis and compared. Challenge is consumed (getAndDel).
+1. **GET /api/challenge** — Receives `{ id, encryptedPublicKey }`.
+2. Derive session key from `id`; decrypt `encryptedPublicKey` to get public key, signing key, token.
+3. **POST /api/challenge** — Encrypt body with public key. Body includes entropy (fingerprint, behaviour) and FingerprintJS payload (signed). Receives `{ id, credential }`.
+4. Decrypt credential to get `encryptedWasm`, `key`, `operations`, `input`, `token`.
+5. Decrypt WASM, load VM, run operations on input, read uint32 at offset 0.
+6. **POST /api/challenge/verify** — Encrypted body `{ token, solved }`. Receives `{ ok }`.
 
 ## Configuration
 
@@ -44,14 +29,16 @@ Token is verified; expected value is fetched from Redis and compared. Challenge 
 |---------|---------|
 | CHALLENGE_VERIFY_SECRET | JWT signing key (min 32 chars) |
 | REDIS_URL | Redis connection (default: redis://localhost:6379) |
+| RISK_DEBUG | Set to 1 for risk assessor debug logs |
 
-## Data layout
+## Data Layout
 
-- `site/data/` — `crypto_utils.wasm`, `bytecodes.json` (copied from compiler build)
-- Used at runtime by challenge route (read file) and verify (bytecodes for run)
+- `data/crypto_utils.wasm` — VM WASM module
+- `data/bytecodes.json` — Opcode mapping and VM state (from compiler build)
+- `data/asn-base-scores.json` — ASN base risk scores (JSON object)
 
-## VM integration
+## VM Integration
 
-- **loadVmFromChallenge()** — Decrypts WASM with key, instantiates, sets up chacha_poly_decrypt import
-- **vmRunWithOperations()** — Applies each op with params as key
-- **readU32LE()** — Reads solved integer from buffer
+- `loadVmFromChallenge()` — Decrypt WASM, instantiate, configure imports
+- `vmRunWithOperations()` — Execute operations with params as key
+- `readU32LE()` — Read solved integer from output buffer

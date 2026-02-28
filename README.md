@@ -31,6 +31,7 @@ npm run start    # Production site (after build)
 ## Documentation
 
 - [Architecture](docs/architecture.md) — Pipeline overview and data flow
+- [API Endpoints](docs/api-endpoints.md) — All endpoints, flows, and line-by-line process
 - [Compiler](docs/compiler.md) — Bytecode generation and WASM build
 - [VM](docs/vm.md) — Operations, bytecodes, and vm_run
 - [Site](docs/site.md) — APIs, pages, and configuration
