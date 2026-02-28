@@ -11,7 +11,7 @@ import {
   getBehaviourTracker,
   type EntropySubmitResponse,
 } from "@/lib/entropy";
-import { submitFingerprint } from "@/lib/fingerprint-client";
+import { submitFingerprint, getVisitorHeaders } from "@/lib/fingerprint-client";
 import { readU32LE } from "@/lib/encoding";
 
 type StepStatus = "idle" | "loading" | "ok" | "error";
@@ -63,7 +63,7 @@ export default function Home() {
     setChallengeState({ status: "loading" });
     setError("");
     try {
-      const res = await fetch("/api/challenge");
+      const res = await fetch("/api/challenge", { headers: getVisitorHeaders() });
       if (!res.ok) throw new Error(`Challenge failed: ${res.status}`);
       const data = (await res.json()) as ChallengeResponse;
       setChallenge(data);
@@ -142,7 +142,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/challenge/verify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getVisitorHeaders() },
         body: JSON.stringify({
           token: challenge.token,
           solved: solvedInteger,
@@ -161,6 +161,9 @@ export default function Home() {
 
   useEffect(() => {
     getBehaviourTracker().record("page_view");
+    import("@/lib/fingerprint-client").then(({ collectFingerprint }) =>
+      collectFingerprint().catch(() => {})
+    );
   }, []);
 
   const statusColor = (s: StepStatus) =>
@@ -331,7 +334,7 @@ export default function Home() {
               setVerifyState({ status: "idle" });
               try {
                 setChallengeState({ status: "loading" });
-                const res = await fetch("/api/challenge");
+                const res = await fetch("/api/challenge", { headers: getVisitorHeaders() });
                 if (!res.ok) throw new Error(`Challenge failed: ${res.status}`);
                 const data = (await res.json()) as ChallengeResponse;
                 setChallenge(data);
@@ -360,7 +363,7 @@ export default function Home() {
                   setVerifyState({ status: "loading" });
                   const verifyRes = await fetch("/api/challenge/verify", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...getVisitorHeaders() },
                     body: JSON.stringify({
                       token: data.token,
                       solved,

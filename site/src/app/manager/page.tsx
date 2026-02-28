@@ -9,6 +9,7 @@ interface RequestEntry {
   userAgent?: string;
   referer?: string;
   ip?: string;
+  visitorId?: string;
 }
 
 interface FingerprintComponent {
@@ -39,44 +40,74 @@ function formatRelative(ts: number) {
   return `${Math.floor(sec / 86400)}d ago`;
 }
 
+const PAGE_SIZE = 25;
+
 export default function ManagerPage() {
   const [requests, setRequests] = useState<RequestEntry[]>([]);
   const [fingerprints, setFingerprints] = useState<FingerprintEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"requests" | "fingerprints">("requests");
   const [error, setError] = useState<string>("");
+  const [highlightFingerprint, setHighlightFingerprint] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (pageNum = page) => {
     setLoading(true);
     setError("");
     try {
       const [reqRes, fpRes] = await Promise.all([
-        fetch("/api/manager/requests"),
+        fetch(`/api/manager/requests?page=${pageNum}&limit=${PAGE_SIZE}`),
         fetch("/api/manager/fingerprints"),
       ]);
 
       if (!reqRes.ok) throw new Error("Failed to fetch requests");
       if (!fpRes.ok) throw new Error("Failed to fetch fingerprints");
 
-      const reqData = (await reqRes.json()) as { requests: RequestEntry[] };
+      const reqData = (await reqRes.json()) as {
+        requests: RequestEntry[];
+        total: number;
+        page: number;
+        limit: number;
+      };
       const fpData = (await fpRes.json()) as { fingerprints: FingerprintEntry[] };
 
       setRequests(reqData.requests);
       setFingerprints(fpData.fingerprints);
+      setTotal(reqData.total);
+      setPage(reqData.page);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load data");
       setRequests([]);
       setFingerprints([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, 10000);
+    fetchData(page);
+  }, [page]);
+
+  useEffect(() => {
+    const id = setInterval(() => fetchData(page), 10000);
     return () => clearInterval(id);
-  }, [fetchData]);
+  }, [page, fetchData]);
+
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+
+  const showFingerprint = (visitorId: string) => {
+    setHighlightFingerprint(visitorId);
+    setActiveTab("fingerprints");
+    setTimeout(() => {
+      document.getElementById(`fp-${visitorId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 100);
+    setTimeout(() => setHighlightFingerprint(null), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-mono">
@@ -86,13 +117,13 @@ export default function ManagerPage() {
             API Manager
           </h1>
           <div className="flex items-center gap-3">
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium border border-zinc-700 disabled:opacity-50 transition-colors"
-            >
-              {loading ? "Loading…" : "Refresh"}
-            </button>
+          <button
+            onClick={() => fetchData(page)}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium border border-zinc-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </button>
             <span className="text-zinc-500 text-xs">
               Auto-refresh 10s
             </span>
@@ -114,7 +145,7 @@ export default function ManagerPage() {
                 : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            Requests ({requests.length})
+            Requests ({total})
           </button>
           <button
             onClick={() => setActiveTab("fingerprints")}
@@ -138,13 +169,14 @@ export default function ManagerPage() {
                     <th className="text-left py-3 px-4 text-zinc-400 font-medium">Method</th>
                     <th className="text-left py-3 px-4 text-zinc-400 font-medium">Path</th>
                     <th className="text-left py-3 px-4 text-zinc-400 font-medium hidden md:table-cell">IP</th>
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium max-w-[200px] truncate hidden lg:table-cell">User-Agent</th>
+                    <th className="text-left py-3 px-4 text-zinc-400 font-medium">Fingerprint</th>
+                    <th className="text-left py-3 px-4 text-zinc-400 font-medium max-w-[180px] truncate hidden lg:table-cell">User-Agent</th>
                   </tr>
                 </thead>
                 <tbody>
                   {requests.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-zinc-500">
+                      <td colSpan={6} className="py-12 text-center text-zinc-500">
                         No requests yet
                       </td>
                     </tr>
@@ -182,7 +214,21 @@ export default function ManagerPage() {
                       <td className="py-3 px-4 text-zinc-500 text-xs hidden md:table-cell">
                         {r.ip ?? "—"}
                       </td>
-                      <td className="py-3 px-4 text-zinc-500 text-xs max-w-[200px] truncate hidden lg:table-cell">
+                      <td className="py-3 px-4">
+                        {r.visitorId ? (
+                          <button
+                            type="button"
+                            onClick={() => showFingerprint(r.visitorId!)}
+                            className="text-cyan-400 hover:text-cyan-300 text-xs font-mono truncate max-w-[120px] block text-left"
+                            title={`View fingerprint ${r.visitorId}`}
+                          >
+                            {r.visitorId.slice(0, 12)}…
+                          </button>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-zinc-500 text-xs max-w-[180px] truncate hidden lg:table-cell">
                         {r.userAgent ?? "—"}
                       </td>
                     </tr>
@@ -190,6 +236,29 @@ export default function ManagerPage() {
                 </tbody>
               </table>
             </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-800 bg-zinc-900/50">
+                <span className="text-zinc-500 text-sm">
+                  Page {page} of {totalPages} ({total} total)
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                    className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -203,7 +272,12 @@ export default function ManagerPage() {
             {fingerprints.map((fp) => (
               <div
                 key={fp.visitorId}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden"
+                id={`fp-${fp.visitorId}`}
+                className={`rounded-xl border overflow-hidden transition-all duration-300 ${
+                  highlightFingerprint === fp.visitorId
+                    ? "border-cyan-500 bg-cyan-950/20 ring-2 ring-cyan-500/50"
+                    : "border-zinc-800 bg-zinc-900/30"
+                }`}
               >
                 <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex flex-wrap gap-4 items-center">
                   <div>
