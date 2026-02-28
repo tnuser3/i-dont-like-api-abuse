@@ -110,39 +110,39 @@ export default function ManagerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-mono">
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono">
       <div className="max-w-6xl mx-auto px-6 py-10">
         <header className="mb-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-2xl font-bold tracking-tight text-white">
             API Manager
           </h1>
           <div className="flex items-center gap-3">
-          <button
-            onClick={() => fetchData(page)}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium border border-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Loading…" : "Refresh"}
-          </button>
-            <span className="text-zinc-500 text-xs">
+            <button
+              onClick={() => fetchData(page)}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg bg-neutral-900/80 border border-neutral-800 hover:border-neutral-700 text-neutral-300 text-sm font-medium disabled:opacity-50 transition-colors"
+            >
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+            <span className="text-neutral-600 text-xs">
               Auto-refresh 10s
             </span>
           </div>
         </header>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-950/50 border border-red-800 text-red-300 text-sm">
+          <div className="mb-6 p-4 rounded-lg bg-neutral-900/50 border border-neutral-800 text-red-400 text-sm">
             {error}
           </div>
         )}
 
-        <div className="flex gap-2 mb-6 border-b border-zinc-800 pb-2">
+        <div className="flex gap-2 mb-6 border-b border-neutral-800 pb-2">
           <button
             onClick={() => setActiveTab("requests")}
             className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
               activeTab === "requests"
-                ? "bg-zinc-800 text-white border border-zinc-700 border-b-zinc-800 -mb-0.5"
-                : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+                ? "bg-neutral-900 border border-neutral-800 border-b-neutral-950 -mb-0.5 text-amber-500/90"
+                : "bg-neutral-900/30 text-neutral-500 hover:text-neutral-300 border border-neutral-800 border-b-transparent"
             }`}
           >
             Requests ({total})
@@ -151,8 +151,8 @@ export default function ManagerPage() {
             onClick={() => setActiveTab("fingerprints")}
             className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
               activeTab === "fingerprints"
-                ? "bg-zinc-800 text-white border border-zinc-700 border-b-zinc-800 -mb-0.5"
-                : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+                ? "bg-neutral-900 border border-neutral-800 border-b-neutral-950 -mb-0.5 text-amber-500/90"
+                : "bg-neutral-900/30 text-neutral-500 hover:text-neutral-300 border border-neutral-800 border-b-transparent"
             }`}
           >
             Fingerprints ({fingerprints.length})
@@ -160,23 +160,23 @@ export default function ManagerPage() {
         </div>
 
         {activeTab === "requests" && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+          <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 overflow-hidden shadow-lg shadow-black/20">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 bg-zinc-900/50">
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium">Time</th>
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium">Method</th>
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium">Path</th>
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium hidden md:table-cell">IP</th>
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium">Fingerprint</th>
-                    <th className="text-left py-3 px-4 text-zinc-400 font-medium max-w-[180px] truncate hidden lg:table-cell">User-Agent</th>
+                  <tr className="border-b border-neutral-800 bg-neutral-900">
+                    <th className="text-left py-3 px-4 text-neutral-400 font-medium">Time</th>
+                    <th className="text-left py-3 px-4 text-neutral-400 font-medium">Method</th>
+                    <th className="text-left py-3 px-4 text-neutral-400 font-medium">Path</th>
+                    <th className="text-left py-3 px-4 text-neutral-400 font-medium hidden md:table-cell">IP</th>
+                    <th className="text-left py-3 px-4 text-neutral-400 font-medium">Fingerprint</th>
+                    <th className="text-left py-3 px-4 text-neutral-400 font-medium max-w-[180px] truncate hidden lg:table-cell">User-Agent</th>
                   </tr>
                 </thead>
                 <tbody>
                   {requests.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-zinc-500">
+                      <td colSpan={6} className="py-12 text-center text-neutral-600">
                         No requests yet
                       </td>
                     </tr>
@@ -184,9 +184,9 @@ export default function ManagerPage() {
                   {requests.map((r, i) => (
                     <tr
                       key={i}
-                      className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors"
+                      className="border-b border-neutral-800/60 hover:bg-neutral-800/40 transition-colors"
                     >
-                      <td className="py-3 px-4 text-zinc-500 text-xs whitespace-nowrap">
+                      <td className="py-3 px-4 text-neutral-400 text-xs whitespace-nowrap">
                         {r.timestamp ? (
                           <span title={formatTime(r.timestamp)}>
                             {formatRelative(r.timestamp)}
@@ -199,19 +199,19 @@ export default function ManagerPage() {
                         <span
                           className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                             r.method === "GET"
-                              ? "bg-emerald-900/50 text-emerald-400"
+                              ? "text-amber-500"
                               : r.method === "POST"
-                                ? "bg-amber-900/50 text-amber-400"
-                                : "bg-zinc-700 text-zinc-300"
+                                ? "text-amber-500/90"
+                                : "text-neutral-400"
                           }`}
                         >
                           {r.method ?? "—"}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-zinc-200 font-mono text-xs">
+                      <td className="py-3 px-4 text-white font-mono text-xs">
                         {r.path ?? "—"}
                       </td>
-                      <td className="py-3 px-4 text-zinc-500 text-xs hidden md:table-cell">
+                      <td className="py-3 px-4 text-neutral-400 text-xs hidden md:table-cell">
                         {r.ip ?? "—"}
                       </td>
                       <td className="py-3 px-4">
@@ -219,16 +219,16 @@ export default function ManagerPage() {
                           <button
                             type="button"
                             onClick={() => showFingerprint(r.visitorId!)}
-                            className="text-cyan-400 hover:text-cyan-300 text-xs font-mono truncate max-w-[120px] block text-left"
+                            className="text-amber-500 hover:text-amber-400 text-xs font-mono truncate max-w-[120px] block text-left underline underline-offset-2"
                             title={`View fingerprint ${r.visitorId}`}
                           >
                             {r.visitorId.slice(0, 12)}…
                           </button>
                         ) : (
-                          <span className="text-zinc-600">—</span>
+                          <span className="text-neutral-600">—</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-zinc-500 text-xs max-w-[180px] truncate hidden lg:table-cell">
+                      <td className="py-3 px-4 text-neutral-400 text-xs max-w-[180px] truncate hidden lg:table-cell">
                         {r.userAgent ?? "—"}
                       </td>
                     </tr>
@@ -237,22 +237,22 @@ export default function ManagerPage() {
               </table>
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-800 bg-zinc-900/50">
-                <span className="text-zinc-500 text-sm">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-800 bg-neutral-900/80">
+                <span className="text-neutral-500 text-sm">
                   Page {page} of {totalPages} ({total} total)
                 </span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1 || loading}
-                    className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 rounded bg-neutral-800/50 border border-neutral-700 hover:border-neutral-600 text-neutral-400 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages || loading}
-                    className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 rounded bg-neutral-800/50 border border-neutral-700 hover:border-neutral-600 text-neutral-400 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
                   </button>
@@ -265,7 +265,7 @@ export default function ManagerPage() {
         {activeTab === "fingerprints" && (
           <section className="space-y-4">
             {fingerprints.length === 0 && !loading && (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 py-16 text-center text-zinc-500">
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 py-16 text-center text-neutral-600">
                 No fingerprints yet
               </div>
             )}
@@ -273,54 +273,54 @@ export default function ManagerPage() {
               <div
                 key={fp.visitorId}
                 id={`fp-${fp.visitorId}`}
-                className={`rounded-xl border overflow-hidden transition-all duration-300 ${
+                className={`rounded-xl border overflow-hidden transition-all duration-300 shadow-md ${
                   highlightFingerprint === fp.visitorId
-                    ? "border-cyan-500 bg-cyan-950/20 ring-2 ring-cyan-500/50"
-                    : "border-zinc-800 bg-zinc-900/30"
+                    ? "border-amber-500 ring-2 ring-amber-500/60 ring-offset-2 ring-offset-neutral-950 bg-amber-950/20"
+                    : "border-neutral-800 bg-neutral-900/50 shadow-black/10"
                 }`}
               >
-                <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex flex-wrap gap-4 items-center">
+                <div className="p-4 border-b border-neutral-800 bg-neutral-900/30 flex flex-wrap gap-4 items-center">
                   <div>
-                    <span className="text-zinc-500 text-xs block">Device ID</span>
-                    <span className="text-zinc-200 font-mono text-sm break-all">
+                    <span className="text-neutral-600 text-xs block">Device ID</span>
+                    <span className="text-neutral-200 font-mono text-sm break-all">
                       {fp.deviceId}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 text-xs block">Visitor ID</span>
-                    <span className="text-zinc-200 font-mono text-sm break-all">
+                    <span className="text-neutral-600 text-xs block">Visitor ID</span>
+                    <span className="text-neutral-200 font-mono text-sm break-all">
                       {fp.visitorId}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 text-xs block">First seen</span>
-                    <span className="text-zinc-400 text-sm">
+                    <span className="text-neutral-600 text-xs block">First seen</span>
+                    <span className="text-neutral-400 text-sm">
                       {formatTime(fp.firstSeen)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 text-xs block">Last seen</span>
-                    <span className="text-zinc-400 text-sm" title={formatTime(fp.lastSeen)}>
+                    <span className="text-neutral-600 text-xs block">Last seen</span>
+                    <span className="text-neutral-400 text-sm" title={formatTime(fp.lastSeen)}>
                       {formatRelative(fp.lastSeen)}
                     </span>
                   </div>
                   {fp.visitorIds.length > 1 && (
                     <div>
-                      <span className="text-zinc-500 text-xs block">Linked devices</span>
-                      <span className="text-zinc-400 text-sm">{fp.visitorIds.length}</span>
+                      <span className="text-neutral-600 text-xs block">Linked devices</span>
+                      <span className="text-neutral-400 text-sm">{fp.visitorIds.length}</span>
                     </div>
                   )}
                 </div>
                 <div className="p-4">
-                  <h4 className="text-zinc-500 text-xs font-medium mb-3">Components</h4>
+                  <h4 className="text-neutral-600 text-xs font-medium mb-3">Components</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {Object.entries(fp.components || {}).map(([key, comp]) => (
                       <div
                         key={key}
-                        className="p-3 rounded-lg bg-black/40 border border-zinc-800"
+                        className="p-3 rounded-lg bg-neutral-950/60 border border-neutral-800"
                       >
-                        <div className="text-zinc-500 text-xs mb-1">{key}</div>
-                        <div className="text-zinc-300 text-xs font-mono break-all">
+                        <div className="text-neutral-600 text-xs mb-1">{key}</div>
+                        <div className="text-neutral-400 text-xs font-mono break-all">
                           {comp.error ? (
                             <span className="text-red-400">Error</span>
                           ) : comp.value !== undefined && comp.value !== null ? (
@@ -332,7 +332,7 @@ export default function ManagerPage() {
                           )}
                         </div>
                         {comp.duration !== undefined && (
-                          <div className="text-zinc-600 text-xs mt-1">{comp.duration}ms</div>
+                          <div className="text-neutral-600 text-xs mt-1">{comp.duration}ms</div>
                         )}
                       </div>
                     ))}
