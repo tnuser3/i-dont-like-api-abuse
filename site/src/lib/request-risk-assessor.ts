@@ -266,7 +266,7 @@ export function assessFingerprintComponents(
 
   if (screenFrameAllZeros && isGoogleInc) {
     score += 0.5;
-    reasons.push("screen_frame_all_zeros_and_webgl_vendor_google_inc");
+    reasons.push("chomium_screen_frame");
   }
 
   return { score, reasons };
