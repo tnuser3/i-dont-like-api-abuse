@@ -84,14 +84,14 @@ async function findMatchingDevice(componentHashes: string[]): Promise<string | n
 }
 
 export async function verifySignedFingerprint(body: {
-  payload: FingerprintPayload;
+  payload: unknown;
   timestamp: number;
   signature: string;
   token: string;
 }): Promise<FingerprintPayload> {
   const { payload, timestamp, signature, token } = body;
 
-  if (!payload || typeof timestamp !== "number" || typeof signature !== "string" || typeof token !== "string") {
+  if (!payload || typeof payload !== "object" || typeof timestamp !== "number" || typeof signature !== "string" || typeof token !== "string") {
     throw new Error("Invalid signed fingerprint: missing fields");
   }
 
@@ -120,11 +120,20 @@ export async function verifySignedFingerprint(body: {
     throw new Error("Invalid signed fingerprint: signature mismatch");
   }
 
-  if (!payload.visitorId || typeof payload.visitorId !== "string" || !payload.components || typeof payload.components !== "object") {
+  const p = payload as Record<string, unknown>;
+  if (!p.visitorId || typeof p.visitorId !== "string" || !p.components || typeof p.components !== "object") {
     throw new Error("Invalid signed fingerprint: invalid payload");
   }
 
-  return payload;
+  const result: FingerprintPayload = {
+    visitorId: p.visitorId,
+    components: p.components as FingerprintComponents,
+  };
+  if (p.confidence && typeof p.confidence === "object" && "score" in p.confidence && typeof (p.confidence as { score?: number }).score === "number") {
+    result.confidence = { score: (p.confidence as { score: number }).score };
+  }
+  if (typeof p.version === "string") result.version = p.version;
+  return result;
 }
 
 export async function storeFingerprint(payload: FingerprintPayload): Promise<FingerprintResponse> {

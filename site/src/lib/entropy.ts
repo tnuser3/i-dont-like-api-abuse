@@ -1,5 +1,7 @@
 import { crc32 } from "./checksum";
-import { toHex } from "./encoding";
+import { toHex, fromHex } from "./encoding";
+
+export { toHex };
 
 export interface ClientFingerprint {
   timestamp: number;
@@ -22,6 +24,17 @@ export interface ClientFingerprint {
   cookieEnabled: boolean;
   canvasHash?: number;
   webglHash?: number;
+  webglVendor?: string;
+  webglRenderer?: string;
+  webgl2Hash?: number;
+  audioHash?: number;
+  fontsHash?: number;
+  pluginsHash?: number;
+  webdriver?: boolean;
+  innerWidth?: number;
+  innerHeight?: number;
+  outerWidth?: number;
+  outerHeight?: number;
 }
 
 export interface BehaviourEvent {
@@ -87,9 +100,47 @@ export function collectFingerprint(): ClientFingerprint {
   }
 
   try {
-    fingerprint.webglHash = getWebGLHash();
+    const webgl = getWebGLInfo();
+    fingerprint.webglHash = webgl.hash;
+    fingerprint.webglVendor = webgl.vendor;
+    fingerprint.webglRenderer = webgl.renderer;
   } catch {
     fingerprint.webglHash = 0;
+  }
+
+  try {
+    fingerprint.webgl2Hash = getWebGL2Hash();
+  } catch {
+    fingerprint.webgl2Hash = 0;
+  }
+
+  try {
+    fingerprint.audioHash = getAudioHash();
+  } catch {
+    fingerprint.audioHash = 0;
+  }
+
+  try {
+    fingerprint.fontsHash = getFontsHash();
+  } catch {
+    fingerprint.fontsHash = 0;
+  }
+
+  try {
+    fingerprint.pluginsHash = getPluginsHash();
+  } catch {
+    fingerprint.pluginsHash = 0;
+  }
+
+  if (typeof navigator !== "undefined") {
+    fingerprint.webdriver = !!(navigator as Navigator & { webdriver?: boolean }).webdriver;
+  }
+
+  if (typeof window !== "undefined") {
+    fingerprint.innerWidth = window.innerWidth;
+    fingerprint.innerHeight = window.innerHeight;
+    fingerprint.outerWidth = window.outerWidth;
+    fingerprint.outerHeight = window.outerHeight;
   }
 
   return fingerprint;
@@ -113,20 +164,84 @@ function getCanvasHash(): number {
   return crc32(new Uint8Array(bytes));
 }
 
-function getWebGLHash(): number {
-  if (typeof document === "undefined" || !document.createElement) return 0;
+function getWebGLInfo(): { hash: number; vendor: string; renderer: string } {
+  if (typeof document === "undefined" || !document.createElement) {
+    return { hash: 0, vendor: "", renderer: "" };
+  }
   const canvas = document.createElement("canvas");
   const gl = (canvas.getContext("webgl") ?? canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
-  if (!gl) return 0;
+  if (!gl) return { hash: 0, vendor: "", renderer: "" };
   const ext = gl.getExtension("WEBGL_debug_renderer_info");
-  if (!ext) return 0;
+  if (!ext) return { hash: 0, vendor: "", renderer: "" };
   const UNMASKED_VENDOR_WEBGL = 0x9245;
   const UNMASKED_RENDERER_WEBGL = 0x9246;
-  const vendor = gl.getParameter(UNMASKED_VENDOR_WEBGL) ?? "";
-  const renderer = gl.getParameter(UNMASKED_RENDERER_WEBGL) ?? "";
+  const vendor = String(gl.getParameter(UNMASKED_VENDOR_WEBGL) ?? "");
+  const renderer = String(gl.getParameter(UNMASKED_RENDERER_WEBGL) ?? "");
   const str = `${vendor}|${renderer}`;
   const bytes = new TextEncoder().encode(str);
-  return crc32(new Uint8Array(bytes));
+  return { hash: crc32(new Uint8Array(bytes)), vendor, renderer };
+}
+
+function getWebGL2Hash(): number {
+  if (typeof document === "undefined" || !document.createElement) return 0;
+  const canvas = document.createElement("canvas");
+  const gl = canvas.getContext("webgl2") as WebGL2RenderingContext | null;
+  if (!gl) return 0;
+  const params: string[] = [
+    String(gl.getParameter(gl.MAX_TEXTURE_SIZE) ?? 0),
+    String(gl.getParameter(gl.MAX_VIEWPORT_DIMS) ?? ""),
+    String(gl.getParameter(gl.MAX_VERTEX_ATTRIBS) ?? 0),
+    String(gl.getParameter(gl.RENDERER) ?? ""),
+    String(gl.getParameter(gl.VENDOR) ?? ""),
+  ];
+  const str = params.join("|");
+  return crc32(new TextEncoder().encode(str));
+}
+
+function getAudioHash(): number {
+  if (typeof window === "undefined") return 0;
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return 0;
+  const ctx = new Ctx();
+  const str = `${ctx.sampleRate}|${(ctx as AudioContext & { baseLatency?: number }).baseLatency ?? 0}|${ctx.state}`;
+  ctx.close();
+  return crc32(new TextEncoder().encode(str));
+}
+
+function getFontsHash(): number {
+  if (typeof document === "undefined" || !document.body) return 0;
+  const testFonts = ["Arial", "Helvetica", "Times New Roman", "Courier New", "Verdana", "Georgia", "Palatino", "Garamond", "Comic Sans MS", "Trebuchet MS", "Impact"];
+  const baseFont = "monospace";
+  const testStr = "mmMwWLliI0O&1";
+  const widths: number[] = [];
+  const span = document.createElement("span");
+  span.style.position = "absolute";
+  span.style.left = "-9999px";
+  span.style.fontSize = "72px";
+  span.textContent = testStr;
+  document.body.appendChild(span);
+  for (const font of testFonts) {
+    span.style.fontFamily = `"${font}", ${baseFont}`;
+    widths.push(span.offsetWidth);
+  }
+  document.body.removeChild(span);
+  const str = widths.join("|");
+  return crc32(new TextEncoder().encode(str));
+}
+
+function getPluginsHash(): number {
+  if (typeof navigator === "undefined") return 0;
+  const nav = navigator as Navigator & { plugins?: { length: number; [i: number]: { name: string } }; mimeTypes?: { length: number } };
+  let str = "";
+  if (nav.plugins) {
+    for (let i = 0; i < Math.min(nav.plugins.length, 20); i++) {
+      str += nav.plugins[i]?.name ?? "";
+    }
+  }
+  if (nav.mimeTypes) {
+    str += `|${nav.mimeTypes.length}`;
+  }
+  return crc32(new TextEncoder().encode(str || "0"));
 }
 
 function fingerprintToBytes(fp: ClientFingerprint): Uint8Array {
@@ -151,9 +266,151 @@ function fingerprintToBytes(fp: ClientFingerprint): Uint8Array {
     fp.cookieEnabled ? "1" : "0",
     String(fp.canvasHash ?? 0),
     String(fp.webglHash ?? 0),
+    fp.webglVendor ?? "",
+    fp.webglRenderer ?? "",
+    String(fp.webgl2Hash ?? 0),
+    String(fp.audioHash ?? 0),
+    String(fp.fontsHash ?? 0),
+    String(fp.pluginsHash ?? 0),
+    fp.webdriver ? "1" : "0",
+    String(fp.innerWidth ?? 0),
+    String(fp.innerHeight ?? 0),
+    String(fp.outerWidth ?? 0),
+    String(fp.outerHeight ?? 0),
   ];
   const str = parts.join("|");
   return new TextEncoder().encode(str);
+}
+
+const MAX_TIMESTAMP_DRIFT_MS = 120_000;
+const USER_AGENT_MISMATCH = 0.35;
+const LANGUAGE_MISMATCH = 0.25;
+const TIMESTAMP_DRIFT = 0.3;
+const ENTROPY_MISMATCH = 0.4;
+
+export function crossReferenceEntropy(
+  fingerprint: ClientFingerprint,
+  headers: Headers,
+  clientTimestamp: number,
+  entropyHex: string,
+  extraSeed?: string
+): { score: number; reasons: string[] } {
+  let score = 0;
+  const reasons: string[] = [];
+  const uaHeader = headers.get("user-agent") ?? "";
+  const acceptLang = headers.get("accept-language") ?? "";
+
+  if (fingerprint.userAgent && uaHeader) {
+    const normClient = fingerprint.userAgent.trim().toLowerCase();
+    const normHeader = uaHeader.trim().toLowerCase();
+    if (normClient !== normHeader) {
+      score += USER_AGENT_MISMATCH;
+      reasons.push("user_agent_mismatch");
+    }
+  } else if (!uaHeader && fingerprint.userAgent) {
+    score += USER_AGENT_MISMATCH;
+    reasons.push("user_agent_missing_header");
+  }
+
+  if (fingerprint.language && acceptLang) {
+    const clientLang = fingerprint.language.toLowerCase().split("-")[0];
+    const headerLangs = acceptLang
+      .toLowerCase()
+      .split(",")
+      .map((s) => s.split(";")[0]!.trim().split("-")[0]);
+    if (clientLang && !headerLangs.some((h) => h === clientLang)) {
+      score += LANGUAGE_MISMATCH;
+      reasons.push("language_mismatch");
+    }
+  }
+
+  const serverNow = Date.now();
+  const drift = Math.abs(serverNow - clientTimestamp);
+  if (drift > MAX_TIMESTAMP_DRIFT_MS) {
+    score += TIMESTAMP_DRIFT;
+    reasons.push("timestamp_drift");
+  }
+
+  if (fingerprint.webdriver) {
+    score += 0.5;
+    reasons.push("webdriver_detected");
+  }
+
+  try {
+    const expected = deriveEntropy(fingerprint, extraSeed);
+    const received = fromHex(entropyHex);
+    if (expected.length !== received.length) {
+      score += ENTROPY_MISMATCH;
+      reasons.push("entropy_length_mismatch");
+    } else {
+      let match = true;
+      for (let i = 0; i < expected.length; i++) {
+        if (expected[i] !== received[i]) {
+          match = false;
+          break;
+        }
+      }
+      if (!match) {
+        score += ENTROPY_MISMATCH;
+        reasons.push("entropy_mismatch");
+      }
+    }
+  } catch {
+    score += ENTROPY_MISMATCH;
+    reasons.push("entropy_invalid");
+  }
+
+  return { score, reasons };
+}
+
+const RATE_LIMIT = 30;
+const SERVER_MIN_INTERVAL_MS = 300;
+
+export function analyseBehaviour(events: BehaviourEvent[]): { score: number; flags: Partial<SuspiciousFlags> } {
+  let score = 0;
+  const flags: Partial<SuspiciousFlags> = {};
+
+  if (events.length === 0) return { score: 0, flags };
+
+  flags.rateLimitExceeded = events.length >= RATE_LIMIT;
+  if (flags.rateLimitExceeded) score += 0.4;
+
+  const timestamps = events.map((e) => e.timestamp).sort((a, b) => a - b);
+  const intervals: number[] = [];
+  for (let i = 1; i < timestamps.length; i++) {
+    intervals.push(timestamps[i]! - timestamps[i - 1]!);
+  }
+
+  const tooFast = intervals.some((d) => d < SERVER_MIN_INTERVAL_MS);
+  flags.syntheticTimestamps = tooFast;
+  if (tooFast) score += 0.3;
+
+  if (intervals.length >= 3) {
+    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const variance = intervals.reduce((s, d) => s + (d - mean) ** 2, 0) / intervals.length;
+    const stdDev = Math.sqrt(variance);
+    flags.automationPattern = mean > 0 && stdDev < AUTOMATION_TOLERANCE_MS;
+    if (flags.automationPattern) score += 0.3;
+  }
+
+  return { score, flags };
+}
+
+export function computeFingerprintHash(fp: ClientFingerprint): string {
+  const str = [
+    fp.userAgent,
+    fp.language,
+    fp.platform,
+    String(fp.hardwareConcurrency),
+    String(fp.screenWidth),
+    String(fp.screenHeight),
+    fp.timezone,
+  ].join("|");
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(36);
 }
 
 export function deriveEntropy(
@@ -271,50 +528,6 @@ let defaultTracker: BehaviourTracker | null = null;
 export function getBehaviourTracker(): BehaviourTracker {
   if (!defaultTracker) defaultTracker = new BehaviourTracker();
   return defaultTracker;
-}
-
-export interface EntropySubmitPayload {
-  fingerprint: ClientFingerprint;
-  entropyHex: string;
-  timestamp: number;
-  behaviour: { events: BehaviourEvent[]; flags: SuspiciousFlags };
-  extraSeed?: string;
-}
-
-export interface EntropySubmitResponse {
-  ok: boolean;
-  flags: SuspiciousFlags;
-  score: number;
-  message?: string;
-  reasons?: string[];
-}
-
-export async function submitEntropy(
-  baseUrl = "",
-  extraSeed?: string
-): Promise<EntropySubmitResponse> {
-  const payload = createEntropyPayload(extraSeed);
-  const body: EntropySubmitPayload = {
-    fingerprint: payload.fingerprint,
-    entropyHex: toHex(payload.entropy),
-    timestamp: payload.timestamp,
-    behaviour: payload.behaviour,
-    ...(extraSeed !== undefined && { extraSeed }),
-  };
-
-  const { getVisitorHeaders } = await import("./fingerprint-client");
-  const res = await fetch(`${baseUrl}/api/entropy`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getVisitorHeaders() },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((err as { error?: string }).error ?? "Entropy submit failed");
-  }
-
-  return res.json() as Promise<EntropySubmitResponse>;
 }
 
 export function createEntropyPayload(extraSeed?: string): {

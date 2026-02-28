@@ -1,6 +1,7 @@
 "use client";
 
-import type { FingerprintPayload, FingerprintResponse } from "./fingerprint";
+import type { FingerprintPayload } from "./fingerprint";
+import type { ChallengeResponse } from "@/lib/vm-inject";
 
 let cachedVisitorId: string | null = null;
 
@@ -48,39 +49,52 @@ async function signPayload(
   return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 
-export async function submitFingerprint(
-  token: string,
-  signingKey: string,
-  baseUrl = ""
-): Promise<FingerprintResponse | null> {
-  const payload = await collectFingerprint();
-  if (!payload) return null;
+export async function requestChallenge(baseUrl = ""): Promise<ChallengeResponse> {
+  const credRes = await fetch(`${baseUrl}/api/challenge`, {
+    headers: getVisitorHeaders(),
+  });
+  if (!credRes.ok) throw new Error(`Challenge credentials failed: ${credRes.status}`);
+  const credentials = (await credRes.json()) as { token: string; signingKey: string };
+
+  const fingerprintPayload = await collectFingerprint();
+  if (!fingerprintPayload) throw new Error("Fingerprint collection failed");
 
   const timestamp = Date.now();
-  const message = JSON.stringify(payload) + "|" + String(timestamp);
-  const signature = await signPayload(signingKey, message);
+  const message = JSON.stringify(fingerprintPayload) + "|" + String(timestamp);
+  const signature = await signPayload(credentials.signingKey, message);
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Visitor-ID": payload.visitorId,
-  };
-  const res = await fetch(`${baseUrl}/api/fingerprint`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      payload,
+  const { createEntropyPayload, toHex } = await import("@/lib/entropy");
+  const entropyPayload = createEntropyPayload();
+
+  const body = {
+    entropy: {
+      fingerprint: entropyPayload.fingerprint,
+      entropyHex: toHex(entropyPayload.entropy),
+      timestamp: entropyPayload.timestamp,
+      behaviour: entropyPayload.behaviour,
+    },
+    fingerprint: {
+      payload: fingerprintPayload,
       timestamp,
       signature,
-      token,
-    }),
+      token: credentials.token,
+    },
+  };
+
+  const res = await fetch(`${baseUrl}/api/challenge`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Visitor-ID": fingerprintPayload.visitorId,
+    },
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(
-      (err as { error?: string }).error ?? "Fingerprint submit failed"
-    );
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Challenge failed: ${res.status}`);
   }
 
-  return res.json() as Promise<FingerprintResponse>;
+  return res.json() as Promise<ChallengeResponse>;
 }
+
