@@ -1,7 +1,6 @@
 import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import { set, get, sAdd, sMembers, expire } from "./redis";
 import { crc32 } from "./checksum";
-import { verifyChallengeToken } from "./jwt-challenge";
 
 export interface FingerprintComponent {
   value?: unknown;
@@ -99,14 +98,7 @@ export async function verifySignedFingerprint(body: {
   if (now - timestamp > TIMESTAMP_MAX_AGE_MS) throw new Error("Invalid signed fingerprint: timestamp too old");
   if (timestamp > now + TIMESTAMP_MAX_FUTURE_MS) throw new Error("Invalid signed fingerprint: timestamp in future");
 
-  let challengeId: string;
-  try {
-    challengeId = (await verifyChallengeToken(token)).challengeId;
-  } catch {
-    throw new Error("Invalid signed fingerprint: invalid or expired token");
-  }
-
-  const signingKeyB64 = await get<string>(`${FP_PREFIX}:sign:${challengeId}`);
+  const signingKeyB64 = await get<string>(`${FP_PREFIX}:sign:${token}`);
   if (!signingKeyB64 || typeof signingKeyB64 !== "string") {
     throw new Error("Invalid signed fingerprint: signing key not found or expired");
   }

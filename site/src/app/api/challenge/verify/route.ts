@@ -2,15 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyChallengeToken } from "@/lib/jwt-challenge";
 import { getAndDel } from "@/lib/redis";
 import { logRouteRequest } from "@/lib/request-logger";
+import { decryptRequestBody } from "@/lib/key-session-server";
 
 export async function POST(request: NextRequest) {
   await logRouteRequest(request, "/api/challenge/verify");
   try {
-    const body = await request.json();
-    const { token, solved } = body as {
-      token?: string;
-      solved?: number | string;
-    };
+    const raw = await request.json();
+    if (!raw || typeof raw !== "object") {
+      return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
+    }
+    const envelope = raw as { id?: string; body?: string };
+    if (typeof envelope.id !== "string" || typeof envelope.body !== "string") {
+      return NextResponse.json(
+        { ok: false, error: "id and body required (encrypted)" },
+        { status: 400 }
+      );
+    }
+
+    let body: { token?: string; solved?: number | string };
+    try {
+      body = (await decryptRequestBody(envelope.id, envelope.body)) as typeof body;
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Decryption failed" },
+        { status: 400 }
+      );
+    }
+
+    const { token, solved } = body;
 
     if (typeof token !== "string" || !token) {
       return NextResponse.json(
@@ -19,14 +38,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const raw = typeof solved === "number" ? solved : parseInt(String(solved), 10);
-    if (isNaN(raw) || !Number.isInteger(raw) || raw < -0x80000000 || raw > 0xffffffff) {
+    const solvedRaw = typeof solved === "number" ? solved : parseInt(String(solved), 10);
+    if (isNaN(solvedRaw) || !Number.isInteger(solvedRaw) || solvedRaw < -0x80000000 || solvedRaw > 0xffffffff) {
       return NextResponse.json(
         { ok: false, error: "solved must be a uint32 (0–4294967295)" },
         { status: 400 }
       );
     }
-    const solvedNum = raw >>> 0;
+    const solvedNum = solvedRaw >>> 0;
 
     let challengeId: string;
     try {

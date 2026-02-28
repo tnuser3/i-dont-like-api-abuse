@@ -7,6 +7,12 @@ import { run } from "@/lib/vm-encoder";
 import { readU32LE } from "@/lib/encoding";
 import { set, get } from "@/lib/redis";
 import { signChallengeToken } from "@/lib/jwt-challenge";
+import {
+  createPublicKeySession,
+  createEncryptionSession,
+  encryptPayloadForResponse,
+  decryptRequestBody,
+} from "@/lib/key-session-server";
 import { logRouteRequest } from "@/lib/request-logger";
 import {
   storeFingerprint,
@@ -28,8 +34,8 @@ export interface ChallengeOperation {
 }
 
 export interface ChallengeCredentialsResponse {
-  token: string;
-  signingKey: string;
+  id: string;
+  encryptedPublicKey: string;
 }
 
 export interface ChallengeResponse {
@@ -39,6 +45,11 @@ export interface ChallengeResponse {
   input: string;
   token: string;
   signingKey: string;
+}
+
+export interface EncryptedChallengeResponse {
+  id: string;
+  credential: string;
 }
 
 const SCORE_KEY_PREFIX = "entropy:score:";
@@ -173,7 +184,7 @@ function validateFingerprintPayload(body: unknown): {
 
 async function createFullChallenge(): Promise<{
   challengeId: string;
-  response: ChallengeResponse;
+  response: EncryptedChallengeResponse;
   expected: number;
 }> {
   const root = process.cwd();
@@ -258,35 +269,33 @@ async function createFullChallenge(): Promise<{
   await set(`challenge:${challengeId}`, expected, { exSeconds: 300 });
   await set(`fp:sign:${challengeId}`, signingKey.toString("base64"), { exSeconds: 300 });
 
-  const token = await signChallengeToken(challengeId);
+  const vmToken = await signChallengeToken(challengeId);
 
   const response: ChallengeResponse = {
     encryptedWasm,
     key: key.toString("base64"),
     operations,
     input,
-    token,
+    token: vmToken,
     signingKey: signingKey.toString("base64"),
   };
 
-  return { challengeId, response, expected };
+  const { id: encId, sessionKey } = await createEncryptionSession();
+  const credential = encryptPayloadForResponse(sessionKey, response);
+
+  return {
+    challengeId,
+    response: { id: encId, credential },
+    expected,
+  };
 }
 
 export async function GET(request: NextRequest) {
   await logRouteRequest(request, "/api/challenge");
   try {
-    const challengeId = randomUUID();
-    const signingKey = randomBytes(32);
-    await set(`fp:sign:${challengeId}`, signingKey.toString("base64"), { exSeconds: 300 });
+    const { id, encryptedPublicKey } = await createPublicKeySession();
 
-    const token = await signChallengeToken(challengeId);
-
-    const credentials: ChallengeCredentialsResponse = {
-      token,
-      signingKey: signingKey.toString("base64"),
-    };
-
-    return NextResponse.json(credentials);
+    return NextResponse.json({ id, encryptedPublicKey });
   } catch (error) {
     console.error("Challenge GET error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -296,13 +305,26 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   await logRouteRequest(request, "/api/challenge");
   try {
-    const body = await request.json();
-
-    if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Invalid payload: body must be object" }, { status: 400 });
+    const raw = await request.json();
+    if (!raw || typeof raw !== "object") {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+    const envelope = raw as { id?: string; body?: string };
+    if (typeof envelope.id !== "string" || typeof envelope.body !== "string") {
+      return NextResponse.json({ error: "Invalid payload: id and body required" }, { status: 400 });
     }
 
-    const b = body as Record<string, unknown>;
+    let body: Record<string, unknown>;
+    try {
+      body = (await decryptRequestBody(envelope.id, envelope.body)) as Record<string, unknown>;
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Decryption failed" },
+        { status: 400 }
+      );
+    }
+
+    const b = body;
     const entropyData = validateEntropyPayload(b.entropy);
     const fingerprintData = validateFingerprintPayload(b.fingerprint);
 
