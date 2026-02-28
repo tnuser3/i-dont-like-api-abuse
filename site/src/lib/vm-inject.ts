@@ -158,7 +158,7 @@ export function vmRun(
   });
 
   const pageSize = 65536;
-  const heapBase = 64 * 1024; // safe region past typical static data
+  const heapBase = 64 * 1024;
   const needed = heapBase + buffer.byteLength + opcodes.length + (key?.length ?? 0) + 64;
   const curSize = mem.buffer.byteLength;
   if (needed > curSize) {
@@ -209,6 +209,7 @@ export interface ChallengeResponse {
   operations: { op: number; params: number[] }[];
   input: string;
   token: string;
+  signingKey: string;
 }
 
 const IV_LEN = 12;

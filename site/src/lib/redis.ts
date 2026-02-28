@@ -101,7 +101,6 @@ export async function expireAt(key: string, unixSeconds: number | Date): Promise
   await c.expireAt(key, sec);
 }
 
-/** Get TTL of a key in seconds. Returns -1 if no expiry, -2 if key doesn't exist. */
 export async function ttl(key: string): Promise<number> {
   const c = await getClient();
   return c.ttl(key);
@@ -130,6 +129,42 @@ export async function sCard(key: string): Promise<number> {
 export async function sRem(key: string, ...members: string[]): Promise<number> {
   const c = await getClient();
   return c.sRem(key, members);
+}
+
+export async function scanKeys(pattern: string, maxKeys = 1000): Promise<string[]> {
+  const c = await getClient();
+  const keys: string[] = [];
+  let cursor: number | string = 0;
+  do {
+    const result = await c.scan(cursor.toString(), { MATCH: pattern, COUNT: 100 });
+    cursor = typeof result.cursor === "string" ? parseInt(result.cursor, 10) : Number(result.cursor);
+    keys.push(...(result.keys ?? []));
+    if (keys.length >= maxKeys) break;
+  } while (cursor !== 0);
+  return keys.slice(0, maxKeys);
+}
+
+const REQUESTS_KEY = "manager:requests";
+const MAX_REQUESTS = 500;
+
+export async function logRequest(entry: Record<string, unknown>): Promise<void> {
+  const c = await getClient();
+  await c.lPush(REQUESTS_KEY, JSON.stringify(entry));
+  await c.lTrim(REQUESTS_KEY, 0, MAX_REQUESTS - 1);
+}
+
+export async function getRecentRequests(limit = 100): Promise<Record<string, unknown>[]> {
+  const c = await getClient();
+  const raw = await c.lRange(REQUESTS_KEY, 0, limit - 1);
+  const result: Record<string, unknown>[] = [];
+  for (const s of raw) {
+    try {
+      result.push(JSON.parse(s) as Record<string, unknown>);
+    } catch {
+      result.push({ raw: s });
+    }
+  }
+  return result;
 }
 
 export async function disconnect(): Promise<void> {
