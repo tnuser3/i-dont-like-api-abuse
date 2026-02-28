@@ -7,7 +7,7 @@ import {
   type ChallengeResponse,
 } from "@/lib/vm-inject";
 import { getBehaviourTracker } from "@/lib/entropy";
-import { requestChallenge, getVisitorHeaders } from "@/lib/fingerprint-client";
+import { requestChallenge, encryptedPost } from "@/lib/fingerprint-client";
 import { readU32LE } from "@/lib/encoding";
 
 type StepStatus = "idle" | "loading" | "ok" | "error";
@@ -110,13 +110,9 @@ export default function Home() {
     setVerifyState({ status: "loading" });
     setError("");
     try {
-      const res = await fetch("/api/challenge/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getVisitorHeaders() },
-        body: JSON.stringify({
-          token: challenge.token,
-          solved: solvedInteger,
-        }),
+      const res = await encryptedPost("/api/challenge/verify", {
+        token: challenge.token,
+        solved: solvedInteger,
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
       setVerifyState({
@@ -300,13 +296,9 @@ export default function Home() {
 
                 if (solved !== null) {
                   setVerifyState({ status: "loading" });
-                  const verifyRes = await fetch("/api/challenge/verify", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", ...getVisitorHeaders() },
-                    body: JSON.stringify({
-                      token: data.token,
-                      solved,
-                    }),
+                  const verifyRes = await encryptedPost("/api/challenge/verify", {
+                    token: data.token,
+                    solved,
                   });
                   const verifyData = (await verifyRes.json()) as {
                     ok: boolean;
