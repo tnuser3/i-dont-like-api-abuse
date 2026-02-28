@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { get, set } from "./redis";
 
 const DEBUG = process.env.RISK_DEBUG === "1" || process.env.DEBUG?.includes("risk");
@@ -35,12 +37,38 @@ const RATE_TIERS: { limit: number; limitJitter: number; windowMs: number; window
 const ASN_BLOCK_THRESHOLD = 5;
 const ASN_SCORE_PER_BLOCKED_IP = 0.1;
 const MAX_ASN_SCORE = 0.5;
+const ASN_BASE_SCORES_PATH = "data/asn-base-scores.json";
+
+let asnBaseScoresCache: Record<string, number> | null = null;
+
+async function getAsnBaseScores(): Promise<Record<string, number>> {
+  if (asnBaseScoresCache) return asnBaseScoresCache;
+  try {
+    const root = process.cwd();
+    const raw = await readFile(join(root, ASN_BASE_SCORES_PATH), "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const scores: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (k.startsWith("_")) continue;
+      const n = typeof v === "number" ? v : parseFloat(String(v));
+      if (!isNaN(n) && n >= 0 && n <= MAX_ASN_SCORE) scores[k] = n;
+    }
+    asnBaseScoresCache = scores;
+    return scores;
+  } catch {
+    asnBaseScoresCache = {};
+    return {};
+  }
+}
+export const RISK_BLOCK_THRESHOLD = 0.45;
 
 export interface RiskRequestInput {
   ip: string;
   userAgent: string | null;
   origin: string | null;
   referer: string | null;
+  secChUa?: string | null;
+  via?: string | null;
 }
 
 export interface RiskAssessment {
@@ -51,6 +79,13 @@ export interface RiskAssessment {
 }
 
 const BOT_PATTERNS = [
+  /headlesschrome/i,
+  /headlesschromeselenium/i,
+  /chromedriver/i,
+  /headless/i,
+  /swiftshader/i,
+  /llvmpipe/i,
+  /mesa\s+offscreen/i,
   /bot/i,
   /crawl/i,
   /spider/i,
@@ -69,11 +104,18 @@ const BOT_PATTERNS = [
   /^http\//i,
   /^node\s/i,
   /^okhttp/i,
-  /headless/i,
   /phantom/i,
   /puppeteer/i,
   /playwright/i,
   /selenium/i,
+  /__webdriver/i,
+  /cdc_/i,
+  /\$cdc_/i,
+  /\$wdc_/i,
+  /webdriver/i,
+  /chrome-lighthouse/i,
+  /chromium\/[0-9]+\.0\s+headless/i,
+  /socks[45]/i,
 ];
 
 const LEGITIMATE_PATTERNS = [
@@ -101,7 +143,7 @@ function assessUserAgent(ua: string | null): { score: number; reasons: string[] 
   }
   for (const p of BOT_PATTERNS) {
     if (p.test(ua)) {
-      score += 0.3;
+      score += 0.65;
       reasons.push("ua_bot_like");
       break;
     }
@@ -125,7 +167,7 @@ function assessOrigin(origin: string | null): { score: number; reasons: string[]
   const reasons: string[] = [];
   let score = 0;
   if (!origin || origin.length === 0) {
-    score += 0.3;
+    score += 0.1;
     reasons.push("origin_missing");
     log("assessOrigin: missing", { score, reasons });
     return { score, reasons };
@@ -165,13 +207,54 @@ function assessReferer(referer: string | null): { score: number; reasons: string
   return { score, reasons };
 }
 
+function assessSecChUa(secChUa: string | null | undefined): { score: number; reasons: string[] } {
+  if (!secChUa || secChUa.length === 0) return { score: 0, reasons: [] };
+  if (/headlesschrome/i.test(secChUa)) {
+    return { score: 0.5, reasons: ["sec_ch_ua_headless"] };
+  }
+  return { score: 0, reasons: [] };
+}
+
+function assessVia(via: string | null | undefined): { score: number; reasons: string[] } {
+  if (!via || via.length === 0) return { score: 0, reasons: [] };
+  const proxies = via.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+  if (proxies.length >= 3) {
+    return { score: 0.15, reasons: ["via_proxy_chain"] };
+  }
+  return { score: 0, reasons: [] };
+}
+
+const SUSPICIOUS_WEBGL_RENDERERS = [
+  /swiftshader/i,
+  /llvmpipe/i,
+  /mesa\s+offscreen/i,
+  /software\s+renderer/i,
+  /mesa\s+software/i,
+  /virgl/i,
+  /lavapipe/i,
+  /google\s+swiftshader/i,
+  /llvmpipe.*gallium/i,
+];
+
+export function assessWebGLRenderer(renderer: string | null | undefined): { score: number; reasons: string[] } {
+  if (!renderer || renderer.length === 0) return { score: 0, reasons: [] };
+  for (const p of SUSPICIOUS_WEBGL_RENDERERS) {
+    if (p.test(renderer)) {
+      return { score: 0.25, reasons: ["webgl_suspicious_renderer"] };
+    }
+  }
+  return { score: 0, reasons: [] };
+}
+
 export function assessHeaders(input: RiskRequestInput): { score: number; reasons: string[] } {
   const ua = assessUserAgent(input.userAgent);
   const origin = assessOrigin(input.origin);
   const referer = assessReferer(input.referer);
-  const score = Math.min(1, ua.score + origin.score + referer.score);
-  const reasons = [...ua.reasons, ...origin.reasons, ...referer.reasons];
-  log("assessHeaders", { score, reasons, breakdown: { ua: ua.score, origin: origin.score, referer: referer.score } });
+  const secChUa = assessSecChUa(input.secChUa);
+  const via = assessVia(input.via);
+  const score = Math.min(1, ua.score + origin.score + referer.score + secChUa.score + via.score);
+  const reasons = [...ua.reasons, ...origin.reasons, ...referer.reasons, ...secChUa.reasons, ...via.reasons];
+  log("assessHeaders", { score, reasons, breakdown: { ua: ua.score, origin: origin.score, referer: referer.score, secChUa: secChUa.score, via: via.score } });
   return { score, reasons };
 }
 
@@ -209,17 +292,19 @@ async function getAsnForIp(ip: string): Promise<string> {
 }
 
 async function getAsnScore(asn: string): Promise<number> {
+  const baseScores = await getAsnBaseScores();
+  let baseScore = baseScores[asn] ?? 0;
   const key = `${ASN_PREFIX}${asn}`;
   const raw = await get<{ blockedCount: number }>(key);
-  if (!raw || raw.blockedCount < ASN_BLOCK_THRESHOLD) {
-    log("getAsnScore", { asn, blockedCount: raw?.blockedCount ?? 0, score: 0 });
-    return 0;
+  let dynamicScore = 0;
+  if (raw && raw.blockedCount >= ASN_BLOCK_THRESHOLD) {
+    dynamicScore = Math.min(
+      MAX_ASN_SCORE - baseScore,
+      (raw.blockedCount - ASN_BLOCK_THRESHOLD + 1) * ASN_SCORE_PER_BLOCKED_IP
+    );
   }
-  const score = Math.min(
-    MAX_ASN_SCORE,
-    (raw.blockedCount - ASN_BLOCK_THRESHOLD + 1) * ASN_SCORE_PER_BLOCKED_IP
-  );
-  log("getAsnScore", { asn, blockedCount: raw.blockedCount, score });
+  const score = Math.min(MAX_ASN_SCORE, baseScore + dynamicScore);
+  log("getAsnScore", { asn, baseScore, blockedCount: raw?.blockedCount ?? 0, dynamicScore, score });
   return score;
 }
 
@@ -366,11 +451,13 @@ export function extractRiskInput(request: NextRequest): RiskRequestInput {
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     request.headers.get("x-real-ip") ??
     "unknown";
-  const input = {
+  const input: RiskRequestInput = {
     ip,
     userAgent: request.headers.get("user-agent"),
     origin: request.headers.get("origin"),
     referer: request.headers.get("referer"),
+    secChUa: request.headers.get("sec-ch-ua"),
+    via: request.headers.get("via"),
   };
   log("extractRiskInput", input);
   return input;
@@ -431,12 +518,22 @@ export async function processRequest(
   const assessment = await assessRequest(input);
   if (assessment.blocked && assessment.blockUntil) {
     const retryAfter = Math.ceil((assessment.blockUntil - Date.now()) / 1000);
-    log("processRequest: BLOCKED (assessment)", { ip: input.ip, retryAfter, reasons: assessment.reasons });
+    log("processRequest: BLOCKED (rate limit)", { ip: input.ip, retryAfter, reasons: assessment.reasons });
     return {
       blocked: true,
       response: NextResponse.json(
         { error: "Blocked", retryAfter, reasons: assessment.reasons },
         { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      ),
+    };
+  }
+  if (assessment.score >= RISK_BLOCK_THRESHOLD) {
+    log("processRequest: BLOCKED (risk score)", { ip: input.ip, score: assessment.score, reasons: assessment.reasons });
+    return {
+      blocked: true,
+      response: NextResponse.json(
+        { error: "Blocked", reasons: assessment.reasons },
+        { status: 403 }
       ),
     };
   }
