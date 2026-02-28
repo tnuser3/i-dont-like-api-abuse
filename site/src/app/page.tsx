@@ -125,12 +125,65 @@ export default function Home() {
     }
   }, [challenge?.token, solvedInteger]);
 
+  const runFullPipeline = useCallback(async () => {
+    setError("");
+    setVerifyState({ status: "idle" });
+    try {
+      setChallengeState({ status: "loading" });
+      const data = await requestChallenge();
+      setChallenge(data);
+      setChallengeState({ status: "ok" });
+
+      setVmState({ status: "loading" });
+      await loadVmFromChallenge(data);
+      setVmLoaded(true);
+      setVmState({ status: "ok" });
+
+      setRunState({ status: "loading" });
+      const raw = Uint8Array.from(atob(data.input), (c) => c.charCodeAt(0));
+      const arr = new Uint8Array(raw.length);
+      arr.set(raw);
+      const rc = vmRunWithOperations(arr, data.operations);
+      if (rc !== 0) throw new Error(`vm_run returned ${rc}`);
+      const solved = arr.length >= 4 ? readU32LE(arr, 0) : null;
+      if (solved !== null) {
+        setSolvedInteger(solved);
+        setTestOutput(String(solved));
+      }
+      setRunState({ status: "ok", message: "Done" });
+
+      if (solved !== null) {
+        setVerifyState({ status: "loading" });
+        const verifyRes = await encryptedPost("/api/challenge/verify", {
+          token: data.token,
+          solved,
+        });
+        const verifyData = (await verifyRes.json()) as {
+          ok: boolean;
+          error?: string;
+        };
+        setVerifyState({
+          status: verifyData.ok ? "ok" : "error",
+          message: verifyData.ok ? "Verified" : verifyData.error ?? "Verification failed",
+        });
+      }
+    } catch (e) {
+      setError(String(e));
+      setRunState({ status: "error" });
+    }
+  }, []);
+
   useEffect(() => {
     getBehaviourTracker().record("page_view");
     import("@/lib/fingerprint-client").then(({ collectFingerprint }) =>
       collectFingerprint().catch(() => {})
     );
   }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => runFullPipeline(), 2000);
+    return () => clearTimeout(t);
+  }, [runFullPipeline]);
 
   const statusColor = (s: StepStatus) =>
     s === "ok"
@@ -267,53 +320,7 @@ export default function Home() {
             One-click run
           </h3>
           <button
-            onClick={async () => {
-              setError("");
-              setVerifyState({ status: "idle" });
-              try {
-                setChallengeState({ status: "loading" });
-                const data = await requestChallenge();
-                setChallenge(data);
-                setChallengeState({ status: "ok" });
-
-                setVmState({ status: "loading" });
-                await loadVmFromChallenge(data);
-                setVmLoaded(true);
-                setVmState({ status: "ok" });
-
-                setRunState({ status: "loading" });
-                const raw = Uint8Array.from(atob(data.input), (c) => c.charCodeAt(0));
-                const arr = new Uint8Array(raw.length);
-                arr.set(raw);
-                const rc = vmRunWithOperations(arr, data.operations);
-                if (rc !== 0) throw new Error(`vm_run returned ${rc}`);
-                const solved = arr.length >= 4 ? readU32LE(arr, 0) : null;
-                if (solved !== null) {
-                  setSolvedInteger(solved);
-                  setTestOutput(String(solved));
-                }
-                setRunState({ status: "ok", message: "Done" });
-
-                if (solved !== null) {
-                  setVerifyState({ status: "loading" });
-                  const verifyRes = await encryptedPost("/api/challenge/verify", {
-                    token: data.token,
-                    solved,
-                  });
-                  const verifyData = (await verifyRes.json()) as {
-                    ok: boolean;
-                    error?: string;
-                  };
-                  setVerifyState({
-                    status: verifyData.ok ? "ok" : "error",
-                    message: verifyData.ok ? "Verified" : verifyData.error ?? "Verification failed",
-                  });
-                }
-              } catch (e) {
-                setError(String(e));
-                setRunState({ status: "error" });
-              }
-            }}
+            onClick={runFullPipeline}
             className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500"
           >
             Challenge → Load → Run → Verify

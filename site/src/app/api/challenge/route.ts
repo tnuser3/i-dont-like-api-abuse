@@ -27,7 +27,11 @@ import {
   computeFingerprintHash,
   deriveEntropy,
 } from "@/lib/entropy";
-import { processRequest } from "@/lib/request-risk-assessor";
+import {
+  processRequest,
+  assessWebGLRenderer,
+  RISK_BLOCK_THRESHOLD,
+} from "@/lib/request-risk-assessor";
 
 export interface ChallengeOperation {
   op: number;
@@ -344,6 +348,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Invalid fingerprint: payload.visitorId, payload.components, timestamp, signature, token required" },
         { status: 400 }
+      );
+    }
+
+    const fp = entropyData.fingerprint;
+    const webglStr = [fp.webglRenderer, fp.webglVendor].filter(Boolean).join(" ");
+    const webglAssessment = assessWebGLRenderer(webglStr || undefined);
+    const headerScore = risk.blocked === false ? risk.assessment.score : 0;
+    const totalRisk = headerScore + webglAssessment.score;
+    if (totalRisk >= RISK_BLOCK_THRESHOLD) {
+      const reasons = [...(risk.blocked === false ? risk.assessment.reasons : []), ...webglAssessment.reasons];
+      return NextResponse.json(
+        { error: "Blocked", reasons },
+        { status: 403 }
       );
     }
 
