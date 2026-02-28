@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecentRequests } from "@/lib/redis";
 import { logRouteRequest } from "@/lib/request-logger";
+import { processRequest } from "@/lib/request-risk-assessor";
 
 export async function GET(request: NextRequest) {
+  const risk = await processRequest(request);
+  if (risk.blocked) return risk.response;
   await logRouteRequest(request, "/api/manager/requests");
   try {
     const { searchParams } = new URL(request.url);

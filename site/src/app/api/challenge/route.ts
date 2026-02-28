@@ -27,6 +27,7 @@ import {
   computeFingerprintHash,
   deriveEntropy,
 } from "@/lib/entropy";
+import { processRequest } from "@/lib/request-risk-assessor";
 
 export interface ChallengeOperation {
   op: number;
@@ -291,6 +292,8 @@ async function createFullChallenge(): Promise<{
 }
 
 export async function GET(request: NextRequest) {
+  const risk = await processRequest(request);
+  if (risk.blocked) return risk.response;
   await logRouteRequest(request, "/api/challenge");
   try {
     const { id, encryptedPublicKey } = await createPublicKeySession();
@@ -303,6 +306,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const risk = await processRequest(request);
+  if (risk.blocked) return risk.response;
   await logRouteRequest(request, "/api/challenge");
   try {
     const raw = await request.json();

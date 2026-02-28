@@ -3,8 +3,11 @@ import { verifyChallengeToken } from "@/lib/jwt-challenge";
 import { getAndDel } from "@/lib/redis";
 import { logRouteRequest } from "@/lib/request-logger";
 import { decryptRequestBody } from "@/lib/key-session-server";
+import { processRequest } from "@/lib/request-risk-assessor";
 
 export async function POST(request: NextRequest) {
+  const risk = await processRequest(request);
+  if (risk.blocked) return risk.response;
   await logRouteRequest(request, "/api/challenge/verify");
   try {
     const raw = await request.json();
