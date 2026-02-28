@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyChallengeToken } from "@/lib/jwt-challenge";
 import { getAndDel } from "@/lib/redis";
+import { logRouteRequest } from "@/lib/request-logger";
 
 export async function POST(request: NextRequest) {
+  await logRouteRequest(request, "/api/challenge/verify");
   try {
     const body = await request.json();
     const { token, solved } = body as {

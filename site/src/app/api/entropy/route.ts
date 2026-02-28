@@ -3,6 +3,7 @@ import type { ClientFingerprint, BehaviourEvent, SuspiciousFlags } from "@/lib/e
 import { deriveEntropy } from "@/lib/entropy";
 import { fromHex } from "@/lib/encoding";
 import { set, get } from "@/lib/redis";
+import { logRouteRequest } from "@/lib/request-logger";
 
 const MAX_TIMESTAMP_DRIFT_MS = 120_000;
 const USER_AGENT_MISMATCH = 0.35;
@@ -134,6 +135,7 @@ function analyseBehaviour(events: BehaviourEvent[]): { score: number; flags: Par
 }
 
 export async function POST(request: NextRequest) {
+  await logRouteRequest(request, "/api/entropy");
   try {
     const body = await request.json();
     const {

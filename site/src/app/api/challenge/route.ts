@@ -7,6 +7,7 @@ import { run } from "@/lib/vm-encoder";
 import { readU32LE } from "@/lib/encoding";
 import { set } from "@/lib/redis";
 import { signChallengeToken } from "@/lib/jwt-challenge";
+import { logRouteRequest } from "@/lib/request-logger";
 
 export interface ChallengeOperation {
   op: number;
@@ -19,6 +20,7 @@ export interface ChallengeResponse {
   operations: ChallengeOperation[];
   input: string;
   token: string;
+  signingKey: string;
 }
 
 function encodePacked(iv: Uint8Array, ciphertext: Uint8Array, tag: Uint8Array): Uint8Array {
@@ -49,6 +51,7 @@ function secureRandomInt(maxExclusive: number): number {
 }
 
 export async function GET(request: NextRequest) {
+  await logRouteRequest(request, "/api/challenge");
   try {
     const root = process.cwd();
     const wasmPath = join(root, "data", "crypto_utils.wasm");
@@ -130,7 +133,11 @@ export async function GET(request: NextRequest) {
     const expected = result.length >= 4 ? readU32LE(result, 0) : 0;
 
     const challengeId = randomUUID();
+    const signingKey = randomBytes(32);
     await set(`challenge:${challengeId}`, expected, { exSeconds: 300 });
+    await set(`fp:sign:${challengeId}`, signingKey.toString("base64"), {
+      exSeconds: 300,
+    });
 
     const token = await signChallengeToken(challengeId);
 
@@ -140,6 +147,7 @@ export async function GET(request: NextRequest) {
       operations,
       input,
       token,
+      signingKey: signingKey.toString("base64"),
     };
 
     return NextResponse.json(response);
@@ -153,6 +161,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await logRouteRequest(request, "/api/challenge");
   try {
     const body = await request.json();
     return NextResponse.json({ message: "Created", data: body });
