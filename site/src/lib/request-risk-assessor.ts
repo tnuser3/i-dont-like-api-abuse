@@ -279,7 +279,6 @@ export async function checkRateLimit(ip: string): Promise<{
   return { allowed: true, violations: raw.violations };
 }
 
-/** Tiered rate limit with jitter. Block 8–32s with random variance. */
 export async function enforceRequestRate(ip: string): Promise<{
   allowed: boolean;
   blockUntil?: number;
@@ -412,10 +411,6 @@ export interface ProcessRequestAllowed {
   assessment: RiskAssessment;
 }
 
-/**
- * Run risk detection and adaptive rate limit on every request.
- * Call at the start of each API route. If blocked, return the response.
- */
 export async function processRequest(
   request: NextRequest
 ): Promise<ProcessRequestResult | ProcessRequestAllowed> {
