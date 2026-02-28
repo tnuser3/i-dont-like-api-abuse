@@ -153,18 +153,27 @@ export async function logRequest(entry: Record<string, unknown>): Promise<void> 
   await c.lTrim(REQUESTS_KEY, 0, MAX_REQUESTS - 1);
 }
 
-export async function getRecentRequests(limit = 100): Promise<Record<string, unknown>[]> {
+export async function getRecentRequests(
+  limit = 50,
+  page = 1
+): Promise<{ requests: Record<string, unknown>[]; total: number }> {
   const c = await getClient();
-  const raw = await c.lRange(REQUESTS_KEY, 0, limit - 1);
-  const result: Record<string, unknown>[] = [];
+  const total = await c.lLen(REQUESTS_KEY);
+  const start = (page - 1) * limit;
+  const stop = start + limit - 1;
+  if (start >= total) {
+    return { requests: [], total };
+  }
+  const raw = await c.lRange(REQUESTS_KEY, start, stop);
+  const requests: Record<string, unknown>[] = [];
   for (const s of raw) {
     try {
-      result.push(JSON.parse(s) as Record<string, unknown>);
+      requests.push(JSON.parse(s) as Record<string, unknown>);
     } catch {
-      result.push({ raw: s });
+      requests.push({ raw: s });
     }
   }
-  return result;
+  return { requests, total };
 }
 
 export async function disconnect(): Promise<void> {

@@ -302,9 +302,10 @@ export async function submitEntropy(
     ...(extraSeed !== undefined && { extraSeed }),
   };
 
+  const { getVisitorHeaders } = await import("./fingerprint-client");
   const res = await fetch(`${baseUrl}/api/entropy`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getVisitorHeaders() },
     body: JSON.stringify(body),
   });
 

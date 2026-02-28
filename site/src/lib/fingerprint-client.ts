@@ -2,6 +2,12 @@
 
 import type { FingerprintPayload, FingerprintResponse } from "./fingerprint";
 
+let cachedVisitorId: string | null = null;
+
+export function getVisitorHeaders(): Record<string, string> {
+  return cachedVisitorId ? { "X-Visitor-ID": cachedVisitorId } : {};
+}
+
 export async function collectFingerprint(): Promise<FingerprintPayload | null> {
   if (typeof window === "undefined") return null;
   try {
@@ -9,6 +15,7 @@ export async function collectFingerprint(): Promise<FingerprintPayload | null> {
     const fp = await FingerprintJS.load({ monitoring: false });
     const result = await fp.get();
     const components = result.components as FingerprintPayload["components"];
+    cachedVisitorId = result.visitorId;
     return {
       visitorId: result.visitorId,
       components,
@@ -53,9 +60,13 @@ export async function submitFingerprint(
   const message = JSON.stringify(payload) + "|" + String(timestamp);
   const signature = await signPayload(signingKey, message);
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Visitor-ID": payload.visitorId,
+  };
   const res = await fetch(`${baseUrl}/api/fingerprint`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       payload,
       timestamp,
