@@ -1,6 +1,5 @@
 namespace Lib;
 
-/// <summary>Checksum utilities</summary>
 public static class ChecksumUtils
 {
     private static readonly uint[]? Crc32Table;

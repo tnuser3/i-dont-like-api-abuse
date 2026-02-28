@@ -1,6 +1,5 @@
 namespace Lib;
 
-/// <summary>Bitwise utilities</summary>
 public static class BitwiseUtils
 {
     public static void XorInPlace(byte[] a, byte[] b)

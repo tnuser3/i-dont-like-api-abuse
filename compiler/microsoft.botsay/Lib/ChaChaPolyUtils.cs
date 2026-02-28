@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 
 namespace Lib;
 
-/// <summary>ChaCha20-Poly1305 AEAD encryption utilities</summary>
 public static class ChaChaPolyUtils
 {
     public const int KeyLength = 32;

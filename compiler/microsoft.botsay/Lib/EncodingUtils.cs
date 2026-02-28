@@ -2,7 +2,6 @@ using System.Text;
 
 namespace Lib;
 
-/// <summary>Byte and integer encoding utilities</summary>
 public static class EncodingUtils
 {
     private const string Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";

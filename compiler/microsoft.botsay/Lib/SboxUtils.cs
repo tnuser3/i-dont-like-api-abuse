@@ -1,6 +1,5 @@
 namespace Lib;
 
-/// <summary>S-box utilities. Regenerated at build time; falls back to GF(2^8) computation if generated file missing.</summary>
 public static partial class SboxUtils
 {
     public static byte[] AesSbox => GenerateAesSbox();
@@ -9,7 +8,6 @@ public static partial class SboxUtils
     private static byte[]? _aesSbox;
     private static byte[]? _aesInvSbox;
 
-    /// <summary>Generate AES S-box from GF(2^8) multiplicative inverse + affine transform (Rijndael definition)</summary>
     private static byte[] GenerateAesSbox()
     {
         var sbox = new byte[256];
@@ -21,7 +19,6 @@ public static partial class SboxUtils
         return sbox;
     }
 
-    /// <summary>Multiplicative inverse in GF(2^8) with irreducible poly 0x11b. inv(0)=0.</summary>
     private static byte Gf256Inv(byte x)
     {
         if (x == 0) return 0;
@@ -45,7 +42,6 @@ public static partial class SboxUtils
         return p;
     }
 
-    /// <summary>Rijndael affine: y = x ^ rot(x,1) ^ rot(x,2) ^ rot(x,3) ^ rot(x,4) ^ 0x63</summary>
     private static byte Affine(byte x) =>
         (byte)(x ^ Rotl8(x, 1) ^ Rotl8(x, 2) ^ Rotl8(x, 3) ^ Rotl8(x, 4) ^ 0x63);
 

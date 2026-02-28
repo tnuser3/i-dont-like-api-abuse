@@ -5,7 +5,6 @@ namespace Lib;
 
 public static class CWasmInjector
 {
-    /// <summary>Placeholder formats: {{NAME}}, {{STR:name}}, {{INT:name}}, {{SBOX:name}}, {{CALL:name}}</summary>
     public static string Inject(string cSource, CWasmInjections injections)
     {
         var sb = new StringBuilder(cSource);
